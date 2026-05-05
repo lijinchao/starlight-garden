@@ -1,0 +1,268 @@
+[gd_scene load_steps=4 format=3 uid="uid://game_scene_complete"]
+
+[sub_resource type="GDScript" id="game_controller"]
+script/source = "## GameController - 游戏控制器
+extends Control
+
+# 节点引用
+@onready var background = $Background
+@onready var hud = $HUD
+@onready var board_container = $BoardContainer
+
+# 系统
+var board: Board
+var board_visual: BoardVisual
+var level_system: LevelSystem
+
+# 状态
+var selected_tile: Vector2i = Vector2i(-1, -1)
+var is_processing: bool = false
+
+func _ready() -> void:
+	_setup_systems()
+	_connect_signals()
+	_start_level(1)
+
+func _setup_systems() -> void:
+	# 创建关卡系统
+	level_system = LevelSystem.new()
+	add_child(level_system)
+	
+	# 创建棋盘逻辑
+	board = Board.new()
+	board.position = Vector2(0, 0)
+	board_container.add_child(board)
+	
+	# 创建棋盘可视化
+	board_visual = BoardVisual.new()
+	board_visual.position = Vector2(
+		(Constants.GRID_COLS * (Constants.TILE_SIZE + Constants.TILE_GAP)) / -2,
+		(Constants.GRID_ROWS * (Constants.TILE_SIZE + Constants.TILE_GAP)) / -2
+	)
+	board_container.add_child(board_visual)
+
+func _connect_signals() -> void:
+	# 棋盘可视化信号
+	board_visual.tile_clicked.connect(_on_tile_clicked)
+	
+	# 棋盘逻辑信号
+	board.tiles_matched.connect(_on_tiles_matched)
+	board.tiles_fallen.connect(_on_tiles_fallen)
+	board.chain_triggered.connect(_on_chain_triggered)
+	
+	# 关卡系统信号
+	level_system.level_loaded.connect(_on_level_loaded)
+	level_system.level_won.connect(_on_level_won)
+	level_system.level_failed.connect(_on_level_failed)
+
+func _start_level(level_id: int) -> void:
+	level_system.start_level(level_id)
+	board.initialize_grid()
+	board_visual.initialize_grid(board.grid)
+	_update_hud()
+
+# ==================== 输入处理 ====================
+func _on_tile_clicked(pos: Vector2i) -> void:
+	if is_processing:
+		return
+	
+	if selected_tile == Vector2i(-1, -1):
+		# 第一次选择
+		selected_tile = pos
+		board_visual.highlight_tile(pos, true)
+	else:
+		# 第二次选择
+		if pos == selected_tile:
+			# 取消选择
+			board_visual.highlight_tile(selected_tile, false)
+			selected_tile = Vector2i(-1, -1)
+		elif board.is_adjacent(selected_tile, pos):
+			# 尝试交换
+			_attempt_swap(selected_tile, pos)
+		else:
+			# 选择新元素
+			board_visual.highlight_tile(selected_tile, false)
+			selected_tile = pos
+			board_visual.highlight_tile(pos, true)
+
+func _attempt_swap(pos1: Vector2i, pos2: Vector2i) -> void:
+	is_processing = true
+	board_visual.highlight_tile(selected_tile, false)
+	selected_tile = Vector2i(-1, -1)
+	
+	# 执行交换
+	board.swap_tiles(pos1, pos2)
+	board_visual.update_tile_position(pos1, pos2)
+	
+	# 检查匹配
+	await get_tree().create_timer(Constants.SWAP_DURATION + 0.1).timeout
+	var matches = board.find_all_matches()
+	
+	if matches.size() > 0:
+		# 使用步数
+		level_system.use_move()
+		_update_hud()
+		# 处理匹配
+		await _process_matches(matches)
+	else:
+		# 无匹配，交换回来
+		board.swap_tiles(pos1, pos2)
+		board_visual.update_tile_position(pos2, pos1)
+	
+	is_processing = false
+
+# ==================== 匹配处理 ====================
+func _process_matches(matches: Array) -> void:
+	while matches.size() > 0:
+		# 显示匹配动画
+		for match_data in matches:
+			var positions = match_data[\"positions\"]
+			var tile_type = match_data[\"type\"]
+			
+			# 收集元素
+			level_system.collect_tiles(tile_type, positions.size)
+			
+			# 增加分数
+			var score = positions.size() * Constants.BASE_SCORE_PER_TILE
+			level_system.add_score(score)
+			
+			# 显示消除动画
+			board_visual.show_match_animation(positions)
+		
+		await get_tree().create_timer(Constants.MATCH_DURATION).timeout
+		
+		# 移除匹配的元素
+		for match_data in matches:
+			for pos in match_data[\"positions\"]:
+				board.grid[pos.x][pos.y] = Constants.TileType.NONE
+		
+		# 下落填充
+		await _drop_and_fill()
+		
+		# 更新UI
+		_update_hud()
+		
+		# 检查新的匹配
+		matches = board.find_all_matches()
+
+func _drop_and_fill() -> void:
+	var movements = []
+	var new_tiles = []
+	
+	# 下落现有元素
+	for col in range(Constants.GRID_COLS):
+		var empty_row = Constants.GRID_ROWS - 1
+		
+		for row in range(Constants.GRID_ROWS - 1, -1, -1):
+			if board.grid[row][col] != Constants.TileType.NONE:
+				if row != empty_row:
+					var tile_type = board.grid[row][col]
+					board.grid[empty_row][col] = tile_type
+					board.grid[row][col] = Constants.TileType.NONE
+					
+					movements.append({
+						\"from\": Vector2i(row, col),
+						\"to\": Vector2i(empty_row, col),
+						\"delay\": (empty_row - row) * 0.05
+					})
+				empty_row -= 1
+		
+		# 填充新元素
+		for row in range(empty_row, -1, -1):
+			var tile_type = board.get_random_basic_tile()
+			board.grid[row][col] = tile_type
+			new_tiles.append({
+				\"pos\": Vector2i(row, col),
+				\"type\": tile_type,
+				\"delay\": (empty_row - row) * 0.05
+			})
+	
+	# 显示动画
+	board_visual.show_fall_animation(movements)
+	await get_tree().create_timer(Constants.FALL_DURATION).timeout
+	board_visual.show_new_tiles(new_tiles)
+	await get_tree().create_timer(0.2).timeout
+
+# ==================== UI更新 ====================
+func _update_hud() -> void:
+	hud.get_node(\"MovesLabel\").text = \"步数: %d\" % level_system.moves_left
+	hud.get_node(\"ScoreLabel\").text = \"分数: %d\" % level_system.current_score
+	hud.get_node(\"TargetLabel\").text = level_system.get_target_progress_text()
+
+# ==================== 信号回调 ====================
+func _on_tiles_matched(positions: Array, tile_type: int) -> void:
+	pass
+
+func _on_tiles_fallen() -> void:
+	pass
+
+func _on_chain_triggered(chain_count: int) -> void:
+	hud.get_node(\"ComboLabel\").text = \"x%d\" % chain_count
+	hud.get_node(\"ComboLabel\").modulate.a = 1.0
+	
+	var tween = create_tween()
+	tween.tween_interval(0.5)
+	tween.tween_property(hud.get_node(\"ComboLabel\"), \"modulate:a\", 0.0, 0.3)
+
+func _on_level_loaded(level_data: Dictionary) -> void:
+	_update_hud()
+
+func _on_level_won(stars: int, score: int) -> void:
+	print(\"Level Won! Stars: %d, Score: %d\" % [stars, score])
+	hud.get_node(\"StatusLabel\").text = \"🎉 恭喜过关！\"
+
+func _on_level_failed() -> void:
+	print(\"Level Failed!\")
+	hud.get_node(\"StatusLabel\").text = \"💫 再试一次吧！\"
+"
+
+[node name="GameScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = SubResource("game_controller")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.98, 0.95, 0.98, 1)
+
+[node name="HUD" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 150.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="MovesLabel" type="Label" parent="HUD"]
+layout_mode = 2
+text = "步数: 30"
+horizontal_alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="HUD"]
+layout_mode = 2
+text = "分数: 0"
+horizontal_alignment = 1
+
+[node name="TargetLabel" type="Label" parent="HUD"]
+layout_mode = 2
+text = "目标: -"
+horizontal_alignment = 1
+
+[node name="ComboLabel" type="Label" parent="HUD"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+modulate = Color(1, 1, 1, 0)
+
+[node name="StatusLabel" type="Label" parent="HUD"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="BoardContainer" type="Node2D" parent="."]
+position = Vector2(375, 750)

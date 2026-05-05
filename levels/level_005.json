@@ -1,0 +1,31 @@
+{
+  "level_id": 5,
+  "moves": 27,
+  "target": {
+    "type": "collect",
+    "requirements": [
+      {
+        "tile_type": 1,
+        "count": 20
+      }
+    ]
+  },
+  "available_types": [
+    1,
+    2,
+    3
+  ],
+  "rewards": {
+    "seed_type": 2,
+    "seed_count": 1,
+    "stars": 20,
+    "first_clear_bonus": {
+      "stars": 30,
+      "seed_count": 1
+    }
+  },
+  "special_elements": {
+    "bomb_probability": 0.034,
+    "rainbow_probability": 0.013
+  }
+}

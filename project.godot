@@ -1,0 +1,60 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
+
+[application]
+
+config/name="Starlight Garden"
+config/description="A healing match-3 puzzle game for women"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.6", "GL Compatibility")
+config/icon="res://assets/sprites/icon.svg"
+
+[autoload]
+
+GameManager="*res://scripts/autoload/GameManager.gd"
+AudioManager="*res://scripts/autoload/AudioManager.gd"
+SaveManager="*res://scripts/autoload/SaveManager.gd"
+TutorialManager="*res://scripts/autoload/TutorialManager.gd"
+PopupManager="*res://scripts/ui/PopupManager.gd"
+SettlementService="*res://scripts/autoload/SettlementService.gd"
+GardenSynthesisService="*res://scripts/autoload/GardenSynthesisService.gd"
+EconomyService="*res://scripts/autoload/EconomyService.gd"
+FlowerLanguageService="*res://scripts/autoload/FlowerLanguageService.gd"
+DailyService="*res://scripts/autoload/DailyService.gd"
+DecorationService="*res://scripts/autoload/DecorationService.gd"
+
+[display]
+
+window/size/viewport_width=750
+window/size/viewport_height=1334
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=1
+
+[input]
+
+ui_accept={
+"deadzone": 0.5,
+"events": []
+}
+ui_cancel={
+"deadzone": 0.5,
+"events": []
+}
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

@@ -1,0 +1,33 @@
+[gd_resource type="CanvasItemMaterial" load_steps=2 format=3]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_1"]
+blend_mode = 0
+flags_use_parent_material = false
+flags_albedo_tex_force_srgb = false
+flags_dont_receive_shadows = false
+flags_use_shadow_to_opacity = false
+flags_emission_on_uv2 = false
+flags_antialias = false
+flags_transparent_biageometry = false
+flags_particles_anim_h_frames = 0
+flags_particles_anim_v_frames = 0
+flags_particles_anim_loop = false
+flags_particles_lifetime_random = false
+particles_anim_h_frames = 0
+particles_anim_v_frames = 0
+particles_anim_loop = false
+vertex_color_use_as_albedo = false
+vertex_color_is_srgb = false
+vertex_color_use_as_emission = false
+growth_rate = 0.0
+tessellation_mode = 0
+tessellation_spacing = 0
+tessellation_quality = 0
+billboard_mode = 0
+billboard_keep_scale = false
+fixed_size = false
+particles_anim_offset = 0.0
+particles_anim_speed = 0.0
+
+[resource]
+resource_local_to_scene = false

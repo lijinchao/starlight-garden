@@ -1,0 +1,23 @@
+# Godot 4.x
+.godot/
+*.translation
+*.import
+
+# macOS
+.DS_Store
+
+# Build outputs
+build/
+export/
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Logs
+*.log
