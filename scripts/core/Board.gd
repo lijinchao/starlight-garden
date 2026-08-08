@@ -18,6 +18,8 @@ var board_processing: bool = false
 var combo_count: int = 0
 var available_types: Array = []
 
+const MAX_CASCADE_CHAINS: int = 8
+
 # ==================== 生命周期 ====================
 func _ready() -> void:
 	initialize_grid()
@@ -151,7 +153,7 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 	var chains = []
 	var chain_count = 0
 
-	while not matches.is_empty():
+	while not matches.is_empty() and chain_count < MAX_CASCADE_CHAINS:
 		chain_count += 1
 		chain_triggered.emit(chain_count)
 
@@ -176,8 +178,17 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 
 		matches = find_all_matches()
 
+	var chain_capped = not matches.is_empty()
+	if chain_capped:
+		_rebuild_stable_grid()
+
 	board_updated.emit()
-	return {"matched": true, "reverted": false, "chains": chains}
+	return {
+		"matched": true,
+		"reverted": false,
+		"chains": chains,
+		"chain_capped": chain_capped
+	}
 
 # ==================== 匹配检测 ====================
 # 查找所有匹配
@@ -283,24 +294,42 @@ func _find_vertical_matches() -> Array:
 
 # 合并重叠匹配（十字消除）
 func _merge_matches(matches: Array) -> Array:
-	var merged = []
-	var used_positions = {}
-	
+	var merged: Array = []
 	for match_data in matches:
-		var new_positions = []
-		for pos in match_data["positions"]:
-			var key = "%d_%d" % [pos.x, pos.y]
-			if not used_positions.has(key):
-				new_positions.append(pos)
-				used_positions[key] = true
-		
-		if new_positions.size() >= Constants.MIN_MATCH_COUNT:
-			merged.append({
-				"type": match_data["type"],
-				"positions": new_positions
-			})
-	
+		var candidate = {
+			"type": int(match_data["type"]),
+			"positions": match_data["positions"].duplicate()
+		}
+		var index = 0
+		while index < merged.size():
+			var existing = merged[index]
+			if int(existing["type"]) == int(candidate["type"]) and _positions_overlap(existing["positions"], candidate["positions"]):
+				for pos in existing["positions"]:
+					if not candidate["positions"].has(pos):
+						candidate["positions"].append(pos)
+				merged.remove_at(index)
+				index = 0
+				continue
+			index += 1
+		merged.append(candidate)
 	return merged
+
+
+func _positions_overlap(first: Array, second: Array) -> bool:
+	for pos in first:
+		if second.has(pos):
+			return true
+	return false
+
+
+func _rebuild_stable_grid() -> void:
+	grid.clear()
+	for row in range(Constants.GRID_ROWS):
+		grid.append([])
+		for col in range(Constants.GRID_COLS):
+			grid[row].append(_get_random_tile_no_match(row, col))
+	while not has_valid_moves():
+		shuffle_board()
 
 # ==================== 消除处理 ====================
 # 处理匹配

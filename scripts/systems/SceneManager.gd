@@ -106,6 +106,7 @@ func _connect_signals() -> void:
 	settings_ui.back_pressed.connect(_on_settings_back)
 	game_controller.first_interaction.connect(_on_playtest_first_interaction)
 	game_controller.breeze_awakened.connect(_on_playtest_breeze_awakened)
+	game_controller.invalid_swap.connect(_on_playtest_invalid_swap)
 	game_controller.level_settled.connect(_on_playtest_level_settled)
 
 
@@ -271,6 +272,10 @@ func _on_playtest_first_interaction(payload: Dictionary) -> void:
 
 func _on_playtest_breeze_awakened(payload: Dictionary) -> void:
 	playtest_recorder.record_event("breeze_awakened", payload)
+
+
+func _on_playtest_invalid_swap(payload: Dictionary) -> void:
+	playtest_recorder.record_event("invalid_swap", payload)
 
 
 func _on_playtest_level_settled(payload: Dictionary) -> void:

@@ -7,7 +7,7 @@
 | 迭代名称 | 迭代 H：试玩验证准备与证据采集 |
 | 文档类型 | 目标对齐 / 功能定义 / 验证清单 |
 | 更新日期 | 2026-08-08 |
-| 对应版本 | 0.1.0-pre.3 |
+| 对应版本 | 0.1.0-pre.4 |
 | 当前状态 | 工程实现完成；5 人观察式试玩待执行 |
 
 ---
@@ -63,6 +63,7 @@
 - `level_started`
 - `first_interaction`
 - `breeze_awakened`
+- `invalid_swap`
 - `level_settled`
 - `garden_viewed`
 
@@ -109,5 +110,5 @@ godot --headless --path . --script res://scripts/tools/playtest_report.gd
 1. 本地记录不改变正式存档和玩法结果。
 2. 当前运行链路覆盖六类关键事件。
 3. 自动化测试和 Harness 通过。
-4. 当前修复版本为 `0.1.0-pre.3` 并记录 Changelog。
+4. 当前修复版本为 `0.1.0-pre.4` 并记录 Changelog。
 5. 5 人试玩仍保持为进入新玩法迭代前的产品闸门。

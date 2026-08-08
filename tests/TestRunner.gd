@@ -213,6 +213,24 @@ func test_board_logic() -> void:
 	assert_true(not board.is_adjacent(Vector2i(3, 3), Vector2i(4, 4)), "不相邻(对角)")
 
 	board.grid = [
+		[1, 2, 1, 2, 1, 2, 3],
+		[2, 3, 2, 3, 2, 3, 2],
+		[3, 2, 3, 1, 3, 1, 3],
+		[2, 3, 2, 3, 2, 3, 2],
+		[3, 2, 3, 1, 3, 1, 3],
+		[2, 3, 2, 3, 2, 3, 2],
+		[3, 1, 3, 1, 3, 1, 3]
+	]
+	assert_true(board.find_all_matches().is_empty(), "间隔相同花朵不会被判为连续消除")
+
+	var cross_matches = board._merge_matches([
+		{"type": 1, "positions": [Vector2i(2, 1), Vector2i(2, 2), Vector2i(2, 3)]},
+		{"type": 1, "positions": [Vector2i(1, 2), Vector2i(2, 2), Vector2i(3, 2)]}
+	])
+	assert_equal(cross_matches.size(), 1, "十字匹配合并为一个连续消除组")
+	assert_equal(cross_matches[0]["positions"].size(), 5, "十字匹配保留全部五个位置")
+
+	board.grid = [
 		[1, 1, 1, 2, 1, 2, 3],
 		[2, 3, 2, 3, 2, 3, 2],
 		[3, 2, 3, 1, 3, 1, 3],
@@ -362,6 +380,8 @@ func test_level_system() -> void:
 	
 	assert_true(level_system._check_win_condition(), "收集完成后胜利")
 	assert_true(level_system.get_target_progress_text().contains("唤醒") or level_system.get_target_progress_text().contains("点亮"), "局内目标进度文本采用主题化表达")
+	assert_true(level_system.get_target_progress_text().contains("通关："), "局内目标明确说明通关条件")
+	assert_true(level_system.get_target_intro_text().contains("即可通过"), "首关提示明确说明如何通过")
 
 	var outcomes = {"won": 0, "failed": 0}
 	level_system.level_won.connect(func(_stars: int, _score: int) -> void: outcomes["won"] += 1)
@@ -986,7 +1006,7 @@ func test_playtest_recording() -> void:
 	assert_equal(events[0].get("event", ""), "level_started", "试玩记录包含事件名称")
 	assert_equal(events[0].get("payload", {}).get("level_id", 0), 1, "试玩记录保留事件负载")
 	assert_true(not str(events[0].get("session_id", "")).is_empty(), "试玩记录包含会话 ID")
-	assert_equal(events[0].get("version", ""), "0.1.0-pre.3", "试玩记录包含当前版本")
+	assert_equal(events[0].get("version", ""), "0.1.0-pre.4", "试玩记录包含当前版本")
 
 	recorder.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

@@ -323,15 +323,25 @@ func get_target_progress_text() -> String:
 		var collected = collected_tiles.get(str(tile_type), 0)
 		var tile_name = Constants.TILE_NAMES.get(tile_type, "Unknown")
 		if not str(theme.get("objective_name", "")).is_empty():
-			texts.append("%s: %d/%d" % [theme.get("objective_name", tile_name), collected, required])
+			texts.append("%s\n通关：%s %d/%d" % [theme.get("objective_name", tile_name), tile_name, collected, required])
 		else:
-			texts.append("%s: %d/%d" % [tile_name, collected, required])
+			texts.append("通关：%s %d/%d" % [tile_name, collected, required])
 	
 	return "\n".join(texts)
 
 
 func get_target_intro_text() -> String:
-	return str(get_theme_target_data().get("objective_detail", "让这里先亮起来。"))
+	var detail = str(get_theme_target_data().get("objective_detail", "让这里先亮起来。"))
+	var requirements = level_config.get("target", {}).get("requirements", [])
+	if requirements.is_empty():
+		return detail
+	var requirement = requirements[0]
+	var tile_type = int(requirement.get("tile_type", Constants.TileType.RED_ROSE))
+	return "%s 收集满 %d 朵%s即可通过。" % [
+		detail,
+		int(requirement.get("count", 0)),
+		Constants.TILE_NAMES.get(tile_type, "花")
+	]
 
 
 func get_theme_target_data() -> Dictionary:

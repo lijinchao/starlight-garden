@@ -193,6 +193,8 @@ func _attempt_swap(pos1: Vector2i, pos2: Vector2i) -> void:
 	else:
 		# 无匹配，交换回来
 		board_visual.update_tile_position(pos2, pos1)
+		if target_label:
+			target_label.text = "没有连成 3 朵，步数不扣。"
 	
 	is_processing_tile = false
 
@@ -235,12 +237,12 @@ func _process_matches(turn_result: Dictionary) -> void:
 		AudioManager.play_fall()
 		await board_visual.show_fall_animation(chain_data["movements"])
 		await board_visual.show_new_tiles(chain_data["new_tiles"])
-		board_visual.sync_with_grid(board.grid)
 		
 		# 更新UI
 		_update_hud()
 	
 	combo_count = 0
+	board_visual.sync_with_grid(board.grid)
 
 # ==================== UI更新 ====================
 func _update_hud() -> void:

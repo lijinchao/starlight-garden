@@ -16,7 +16,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="Starlight Garden"
 config/description="A calming garden-restoration match-3 prototype"
-config/version="0.1.0-pre.3"
+config/version="0.1.0-pre.4"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://assets/sprites/icon.svg"

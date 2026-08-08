@@ -4,6 +4,7 @@ extends Control
 
 signal first_interaction(payload: Dictionary)
 signal breeze_awakened(payload: Dictionary)
+signal invalid_swap(payload: Dictionary)
 signal level_settled(payload: Dictionary)
 
 const AsyncUtilsScript = preload("res://scripts/utils/AsyncUtils.gd")
@@ -119,7 +120,7 @@ func _create_ui() -> void:
 	board_container = Control.new()
 	board_container.custom_minimum_size = Vector2(board_size, board_size)
 	board_container.size = Vector2(board_size, board_size)
-	board_container.position = Vector2((750 - board_size) / 2, 150)
+	board_container.position = Vector2((750 - board_size) / 2, 230)
 	add_child(board_container)
 
 func _setup_systems() -> void:
@@ -247,6 +248,12 @@ func _attempt_swap(pos1: Vector2i, pos2: Vector2i) -> void:
 	else:
 		# 无匹配，交换回来
 		board_visual.update_tile_position(pos2, pos1)
+		if status_label:
+			status_label.text = "没有连成 3 朵，步数不扣。"
+		invalid_swap.emit({
+			"level_id": level_system.current_level_id,
+			"moves_left": level_system.moves_left
+		})
 	
 	board_processing = false
 
@@ -301,13 +308,15 @@ func _process_matches(turn_result: Dictionary) -> void:
 		# 下落填充
 		await board_visual.show_fall_animation(chain_data["movements"])
 		await board_visual.show_new_tiles(chain_data["new_tiles"])
-		board_visual.sync_with_grid(board.grid)
 		await AsyncUtilsScript.create_delay_tween(self, 0.3).finished
 		
 		# 更新UI
 		_update_hud()
 	
 	combo_count = 0
+	board_visual.sync_with_grid(board.grid)
+	if turn_result.get("chain_capped", false) and status_label:
+		status_label.text = "连锁太旺，花园已经轻轻整理好棋盘。"
 
 # ==================== UI更新 ====================
 func _update_hud() -> void:
