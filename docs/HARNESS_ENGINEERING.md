@@ -30,7 +30,7 @@ Harness 工程的目标是把“产品方向正确、功能可验证、文档代
 
 1. `README.md`
 2. `docs/STATUS_AND_ITERATION_PLAN.md`
-3. 当前迭代文档，默认是 `docs/ITERATION_G_TASK_BREAKDOWN.md`
+3. 当前迭代文档，默认是 `docs/ITERATION_H_TASK_BREAKDOWN.md`
 4. `docs/HARNESS_ENGINEERING.md`
 5. `docs/MANUAL_VERIFICATION_GUIDE.md`
 

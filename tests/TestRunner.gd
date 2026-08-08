@@ -4,6 +4,7 @@ extends Node
 
 const Fragment = preload("res://scripts/ui/Fragment.gd")
 const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
+const PlaytestRecorderScript = preload("res://scripts/utils/PlaytestRecorder.gd")
 
 # ==================== 信号 ====================
 signal test_suite_completed(results: Dictionary)
@@ -40,6 +41,7 @@ func run_all_tests() -> Dictionary:
 	_run_test_suite("Board Level Config", Callable(self, "test_board_level_config"))
 	_run_test_suite("Board Visual Input", Callable(self, "test_board_visual_input"))
 	_run_test_suite("Visual Asset Integration", Callable(self, "test_visual_asset_integration"))
+	_run_test_suite("Playtest Recording", Callable(self, "test_playtest_recording"))
 	_run_test_suite("Match Detection", Callable(self, "test_match_detection"))
 	_run_test_suite("Level System", Callable(self, "test_level_system"))
 	_run_test_suite("Level Progression", Callable(self, "test_level_progression"))
@@ -948,3 +950,29 @@ func test_tutorial_highlight() -> void:
 	tutorial_system.shutdown()
 	tutorial_system.free()
 	TutorialManager.reset_tutorial()
+
+
+func test_playtest_recording() -> void:
+	var path = "user://test_playtest_events.jsonl"
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+	var recorder = PlaytestRecorderScript.new(path)
+	recorder.enabled = true
+	var first_write = recorder.record_event("level_started", {"level_id": 1})
+	var second_write = recorder.record_event("breeze_awakened", {"level_id": 1})
+	assert_true(first_write, "试玩事件可以写入本地 JSONL")
+	assert_true(second_write, "试玩事件可以连续追加")
+
+	var events = PlaytestRecorderScript.read_events(path)
+	assert_equal(events.size(), 2, "试玩记录可逐行读取")
+	if events.size() < 2:
+		recorder.free()
+		return
+	assert_equal(events[0].get("event", ""), "level_started", "试玩记录包含事件名称")
+	assert_equal(events[0].get("payload", {}).get("level_id", 0), 1, "试玩记录保留事件负载")
+	assert_true(not str(events[0].get("session_id", "")).is_empty(), "试玩记录包含会话 ID")
+	assert_equal(events[0].get("version", ""), "0.1.0-pre.2", "试玩记录包含当前版本")
+
+	recorder.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

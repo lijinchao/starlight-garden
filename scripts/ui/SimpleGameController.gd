@@ -2,6 +2,10 @@
 class_name SimpleGameController
 extends Control
 
+signal first_interaction(payload: Dictionary)
+signal breeze_awakened(payload: Dictionary)
+signal level_settled(payload: Dictionary)
+
 const AsyncUtilsScript = preload("res://scripts/utils/AsyncUtils.gd")
 const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
 
@@ -25,6 +29,7 @@ var background_tint: ColorRect
 var selected_tile: Vector2i = Vector2i(-1, -1)
 var board_processing: bool = false  # 重命名以避免遮蔽基类属性
 var combo_count: int = 0
+var first_interaction_recorded: bool = false
 
 const FAILURE_CONTINUE_COST: int = 10
 const PRE_LEVEL_BLESSING_COST: int = 12
@@ -157,6 +162,7 @@ func _start_level(level_id: int, bonus_moves: int = 0) -> void:
 	board_visual.initialize_grid(board.grid)
 	_update_hud()
 	combo_count = 0
+	first_interaction_recorded = false
 	if status_label:
 		status_label.text = level_system.get_target_intro_text()
 
@@ -194,6 +200,12 @@ func _is_board_input_blocked() -> bool:
 func _on_tile_clicked(pos: Vector2i) -> void:
 	if board_processing:
 		return
+	if not first_interaction_recorded:
+		first_interaction_recorded = true
+		first_interaction.emit({
+			"level_id": level_system.current_level_id,
+			"moves_left": level_system.moves_left
+		})
 	
 	if selected_tile == Vector2i(-1, -1):
 		# 第一次选择
@@ -272,6 +284,13 @@ func _process_matches(turn_result: Dictionary) -> void:
 					focus_name,
 					int(awakening_result.get("bonus_progress", 0))
 				]
+			breeze_awakened.emit({
+				"awakening_count": awakening_count,
+				"bonus_progress": int(awakening_result.get("bonus_progress", 0)),
+				"focus_name": focus_name,
+				"level_id": level_system.current_level_id,
+				"moves_left": level_system.moves_left
+			})
 			await AsyncUtilsScript.create_delay_tween(self, 0.35).finished
 		
 		# 显示消除动画（等待完成）
@@ -374,6 +393,7 @@ func _on_level_won(stars: int, score: int) -> void:
 		{"theme_progress": level_system.get_theme_progress_snapshot()}
 	)
 	SettlementService.apply_victory_settlement(settlement)
+	level_settled.emit(_build_playtest_settlement_payload(settlement))
 
 	if target_label:
 		target_label.text = "🎉 恭喜过关！"
@@ -396,6 +416,7 @@ func _on_level_failed() -> void:
 		{"theme_progress": level_system.get_theme_progress_snapshot()}
 	)
 	SettlementService.apply_failure_settlement(settlement)
+	level_settled.emit(_build_playtest_settlement_payload(settlement))
 
 	if target_label:
 		target_label.text = "💫 进入休息时刻"
@@ -427,3 +448,15 @@ func _collect_awakening_positions(awakening_matches: Array) -> Array:
 		for pos in match_data.get("positions", []):
 			positions.append(pos)
 	return positions
+
+
+func _build_playtest_settlement_payload(settlement: Dictionary) -> Dictionary:
+	var theme_progress = settlement.get("theme_progress", {})
+	return {
+		"awakening_count": int(theme_progress.get("awakenings", 0)),
+		"level_id": int(settlement.get("level_id", level_system.current_level_id)),
+		"moves_left": level_system.moves_left,
+		"outcome": str(settlement.get("outcome", "unknown")),
+		"player_total_runs_after": int(settlement.get("player_total_runs_after", 0)),
+		"progress_ratio": float(settlement.get("progress_ratio", 1.0))
+	}

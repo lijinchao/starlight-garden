@@ -16,6 +16,7 @@ const REQUIRED_DOCS: Array[String] = [
 	"res://docs/ITERATION_E_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_F_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_G_TASK_BREAKDOWN.md",
+	"res://docs/ITERATION_H_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_TEMPLATE.md",
 	"res://docs/MANUAL_VERIFICATION_GUIDE.md",
 	"res://docs/HARNESS_ENGINEERING.md",
@@ -115,25 +116,25 @@ func _check_doc_discoverability() -> void:
 	_expect(readme.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "README 暴露当前产品与架构基线")
 	_expect(readme.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "README 暴露主题与玩法复盘")
 	_expect(readme.contains("CHANGELOG.md"), "README 暴露版本历史")
-	_expect(readme.contains("ITERATION_G_TASK_BREAKDOWN.md"), "README 暴露当前迭代 G 文档入口")
+	_expect(readme.contains("ITERATION_H_TASK_BREAKDOWN.md"), "README 暴露当前迭代 H 文档入口")
 	_expect(agents.contains("HARNESS_ENGINEERING.md"), "AGENTS 暴露 Harness 文档入口")
 	_expect(agents.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "AGENTS 暴露当前产品与架构基线")
 	_expect(agents.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "AGENTS 暴露主题与玩法复盘")
-	_expect(agents.contains("ITERATION_G_TASK_BREAKDOWN.md"), "AGENTS 指向当前迭代 G")
+	_expect(agents.contains("ITERATION_H_TASK_BREAKDOWN.md"), "AGENTS 指向当前迭代 H")
 	_expect(test_docs.contains("run_harness.sh"), "测试文档暴露统一 Harness 入口")
 
 
 func _check_iteration_contract() -> void:
-	var iteration = _read_text("res://docs/ITERATION_G_TASK_BREAKDOWN.md")
-	_expect(_contains_any(iteration, ["迭代目标", "迭代 G 目标"]), "当前迭代文档包含迭代目标")
+	var iteration = _read_text("res://docs/ITERATION_H_TASK_BREAKDOWN.md")
+	_expect(_contains_any(iteration, ["迭代目标", "迭代 H 目标"]), "当前迭代文档包含迭代目标")
 	_expect(iteration.contains("产品目标"), "当前迭代文档包含产品目标")
 	_expect(iteration.contains("用户感知"), "当前迭代文档包含用户感知结果")
 	_expect(iteration.contains("目标映射"), "当前迭代文档包含目标映射")
 	_expect(iteration.contains("验证"), "当前迭代文档包含验证方式")
 	_expect(iteration.contains("可评估"), "当前迭代文档包含可评估口径")
 	_expect(iteration.contains("完成"), "当前迭代文档包含完成状态或完成定义")
-	_expect(iteration.contains("清风唤醒"), "当前迭代文档覆盖清风唤醒机制")
-	_expect(iteration.contains("主题化"), "当前迭代文档覆盖主题化目标表达")
+	_expect(iteration.contains("试玩"), "当前迭代文档覆盖试玩验证")
+	_expect(iteration.contains("不联网"), "当前迭代文档明确本地数据边界")
 
 
 func _check_manual_verification_contract() -> void:

@@ -19,7 +19,7 @@
 3. [docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md](/Users/jacklee/workspace/starlight-garden/docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md)
 4. [docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md](/Users/jacklee/workspace/starlight-garden/docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md)
 5. 当前正在执行的迭代文档
-   默认优先看 [docs/ITERATION_G_TASK_BREAKDOWN.md](/Users/jacklee/workspace/starlight-garden/docs/ITERATION_G_TASK_BREAKDOWN.md)
+   默认优先看 [docs/ITERATION_H_TASK_BREAKDOWN.md](/Users/jacklee/workspace/starlight-garden/docs/ITERATION_H_TASK_BREAKDOWN.md)
 6. [docs/HARNESS_ENGINEERING.md](/Users/jacklee/workspace/starlight-garden/docs/HARNESS_ENGINEERING.md)
 7. 如果要新增后续迭代，使用 [docs/ITERATION_TEMPLATE.md](/Users/jacklee/workspace/starlight-garden/docs/ITERATION_TEMPLATE.md)
 

@@ -20,6 +20,7 @@
 - 前三局已经收敛，第 4 局多数 Meta 共用解锁阈值，仍存在复杂度断层。
 - 下一步不扩新系统，先完成试玩验证、旧运行路径隔离、平台与包体预算。
 - 主题、用户场景和流行玩法取舍见 [PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md](./PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md)。
+- 迭代 H 已补本地试玩事件记录和汇总工具，下一项产品工作是执行 5 人观察式试玩，而不是新增玩法。
 
 ---
 
@@ -439,6 +440,21 @@
 - 4 连时会出现一次明显的 `清风唤醒` 反馈
 - `清风唤醒` 不只是特效，还会真实推进目标
 - 结算能说明“这一局把哪里吹亮了一点”
+
+### 迭代 H：试玩验证准备与证据采集（P0）
+
+当前执行文档：
+
+- [ITERATION_H_TASK_BREAKDOWN.md](./ITERATION_H_TASK_BREAKDOWN.md)
+
+目标：让核心体验是否成立可以被本地事件和观察记录验证，同时保持玩法、经济和解锁行为不变。
+
+当前状态：
+
+- 已建立 `session_started`、`level_started`、`first_interaction`、`breeze_awakened`、`level_settled`、`garden_viewed` 事件契约。
+- 已提供本地 JSONL 记录和命令行摘要工具。
+- 已明确不联网、不采集身份和设备标识。
+- 工程准备完成，5 人观察式试玩待执行。
 
 ---
 

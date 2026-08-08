@@ -43,6 +43,7 @@
 | [迭代D目标对齐与验证清单](./docs/ITERATION_D_TASK_BREAKDOWN.md) | 花园装饰、星光消耗与氛围值的目标映射和验证标准 |
 | [迭代F目标对齐与验证清单](./docs/ITERATION_F_TASK_BREAKDOWN.md) | 前三局体验减法、花园恢复反馈与平台化差异定位 |
 | [迭代G目标对齐与验证清单](./docs/ITERATION_G_TASK_BREAKDOWN.md) | 局内爽感、清风唤醒与主题化目标验证 |
+| [迭代H目标对齐与验证清单](./docs/ITERATION_H_TASK_BREAKDOWN.md) | 本地试玩证据采集、汇总工具与产品验证门槛 |
 | [迭代模板](./docs/ITERATION_TEMPLATE.md) | 后续所有迭代统一使用的“目标-功能-验证-评估”模板 |
 | [Harness 工程](./docs/HARNESS_ENGINEERING.md) | Agent 可读的目标、约束、验证入口与机械检查基线 |
 | [手动验证指引](./docs/MANUAL_VERIFICATION_GUIDE.md) | 逐项验证结算、合成、星光用途、失败保底与连续失败鼓励 |
@@ -131,7 +132,7 @@ GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harnes
 
 ### 当前版本状态
 
-当前受管理版本：`0.1.0-pre.1`。版本历史见 [CHANGELOG.md](./CHANGELOG.md)，机器可读版本见 [VERSION](./VERSION)。
+当前受管理版本：`0.1.0-pre.2`。版本历史见 [CHANGELOG.md](./CHANGELOG.md)，机器可读版本见 [VERSION](./VERSION)。
 
 - [x] 核心消除玩法
 - [x] 基础关卡系统（20关）

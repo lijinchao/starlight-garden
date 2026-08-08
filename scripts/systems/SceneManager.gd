@@ -3,6 +3,7 @@ class_name SceneManager
 extends Control  # 改为Control以支持子节点锚点
 
 const AsyncUtilsScript = preload("res://scripts/utils/AsyncUtils.gd")
+const PlaytestRecorderScript = preload("res://scripts/utils/PlaytestRecorder.gd")
 
 # ==================== 信号 ====================
 signal scene_changed(scene_name: String)
@@ -27,6 +28,7 @@ var garden_ui: GardenUI
 var flower_language_ui: FlowerLanguageUI
 var daily_gift_ui: DailyGiftUI
 var settings_ui: SettingsUI
+var playtest_recorder: PlaytestRecorder
 
 # 预加载脚本
 var SimpleGameControllerScript = preload("res://scripts/ui/SimpleGameController.gd")
@@ -41,6 +43,7 @@ func _ready() -> void:
 	# 动态获取视口大小并设置
 	size = get_viewport_rect().size
 	_setup_scenes()
+	_setup_playtest_recording()
 	_connect_signals()
 	GameManager.state_changed.connect(_on_game_state_changed)
 	GameManager.garden_requested.connect(_on_game_garden_requested)
@@ -101,6 +104,14 @@ func _connect_signals() -> void:
 	
 	# 设置信号
 	settings_ui.back_pressed.connect(_on_settings_back)
+	game_controller.first_interaction.connect(_on_playtest_first_interaction)
+	game_controller.breeze_awakened.connect(_on_playtest_breeze_awakened)
+	game_controller.level_settled.connect(_on_playtest_level_settled)
+
+
+func _setup_playtest_recording() -> void:
+	playtest_recorder = PlaytestRecorderScript.new()
+	add_child(playtest_recorder)
 
 # ==================== 场景切换 ====================
 func _show_menu() -> void:
@@ -118,6 +129,11 @@ func _start_game(level_id: int, bonus_moves: int = 0) -> void:
 	# 显示游戏控制器
 	game_controller.visible = true
 	game_controller._start_level(level_id, bonus_moves)
+	playtest_recorder.record_event("level_started", {
+		"bonus_moves": bonus_moves,
+		"level_id": level_id,
+		"total_runs_before": int(SaveManager.get_player_data().get("total_runs", 0))
+	})
 	
 	current_scene = SceneType.GAME
 	scene_changed.emit("game")
@@ -132,6 +148,11 @@ func _show_garden(context: Dictionary = {}) -> void:
 	garden_ui.show_garden(context)
 	current_scene = SceneType.GARDEN
 	scene_changed.emit("garden")
+	playtest_recorder.record_event("garden_viewed", {
+		"level_id": int(context.get("level_id", 0)),
+		"outcome": str(context.get("outcome", "direct")),
+		"total_runs": int(SaveManager.get_player_data().get("total_runs", 0))
+	})
 
 func _show_flower_journal() -> void:
 	_hide_all_scenes()
@@ -242,3 +263,15 @@ func _on_game_state_changed(new_state: int) -> void:
 
 func _on_game_garden_requested(context: Dictionary = {}) -> void:
 	_show_garden(context)
+
+
+func _on_playtest_first_interaction(payload: Dictionary) -> void:
+	playtest_recorder.record_event("first_interaction", payload)
+
+
+func _on_playtest_breeze_awakened(payload: Dictionary) -> void:
+	playtest_recorder.record_event("breeze_awakened", payload)
+
+
+func _on_playtest_level_settled(payload: Dictionary) -> void:
+	playtest_recorder.record_event("level_settled", payload)

@@ -7,7 +7,7 @@
 | 文档性质 | 当前产品裁决 / 架构基线 / 冲突处理依据 |
 | 更新时间 | 2026-08-08 |
 | 当前阶段 | Pre-MVP 原型验证 |
-| 当前迭代 | 迭代 G：实现完成，产品验证待完成 |
+| 当前迭代 | 迭代 H：试玩验证准备已完成，5 人观察式试玩待执行 |
 
 本文用于回答三个问题：当前产品是否跑偏、工程是否仍可驾驭、发生文档冲突时以什么为准。
 
@@ -162,7 +162,7 @@ scenes/main.tscn
 
 1. 当前可运行代码、关卡配置和自动化测试。
 2. 本文档与 `STATUS_AND_ITERATION_PLAN.md`。
-3. 当前迭代文档 `ITERATION_G_TASK_BREAKDOWN.md`。
+3. 当前迭代文档 `ITERATION_H_TASK_BREAKDOWN.md`；迭代 G 保留为玩法实现依据。
 4. `GAME_DESIGN.md`，仅代表长期产品愿景。
 5. `DEVELOPMENT_PLAN.md`、`AI_DEVELOPMENT_PLAN.md`，仅作历史规划参考。
 6. `PROJECT_STATUS_REVIEW.md`、`TECH_REMEDIATION_PLAN.md`，仅作历史问题来源，问题是否仍存在必须重新核对代码。
