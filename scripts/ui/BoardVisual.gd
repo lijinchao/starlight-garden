@@ -3,6 +3,7 @@ class_name BoardVisual
 extends Node2D
 
 const AsyncUtilsScript = preload("res://scripts/utils/AsyncUtils.gd")
+const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
 
 # ==================== 信号 ====================
 signal tile_clicked(pos: Vector2i)
@@ -11,10 +12,22 @@ signal tile_clicked(pos: Vector2i)
 var tiles: Dictionary = {}  # {Vector2i: Tile}
 var click_control: Control
 var last_clicked_pos: Vector2i = Vector2i(-1, -1)
+var transient_tweens: Array[Tween] = []
 
 # ==================== 生命周期 ====================
 func _ready() -> void:
 	_setup_click_area()
+
+
+func _exit_tree() -> void:
+	for tween in transient_tweens:
+		if tween and is_instance_valid(tween):
+			tween.kill()
+	transient_tweens.clear()
+	clear_all_tiles()
+	if click_control and is_instance_valid(click_control):
+		click_control.queue_free()
+		click_control = null
 
 func _setup_click_area() -> void:
 	# 使用覆盖整个棋盘的 Control 来稳定接收点击，避免被上层 Control 吃掉事件
@@ -204,6 +217,87 @@ func show_hint(pos1: Vector2i, pos2: Vector2i) -> void:
 	if tiles.has(pos2):
 		tiles[pos2].play_hint_animation()
 
+
+func show_awakening_animation(positions: Array, focus_name: String, caption: String = "清风唤醒") -> void:
+	if positions.is_empty():
+		return
+
+	var center = Vector2.ZERO
+	for pos in positions:
+		center += _grid_to_world(pos) + Vector2(Constants.TILE_SIZE / 2.0, Constants.TILE_SIZE / 2.0)
+	center /= float(positions.size())
+
+	var trail = _create_awakening_sprite(
+		VisualAssetCatalogScript.get_breeze_trail_texture(),
+		"BreezeTrail",
+		center,
+		320.0
+	)
+	var burst = _create_awakening_sprite(
+		VisualAssetCatalogScript.get_breeze_burst_texture(),
+		"BreezeBurst",
+		center,
+		180.0
+	)
+
+	var label = Label.new()
+	label.text = "%s\n%s" % [caption, focus_name]
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 26)
+	label.modulate = Color(1.0, 0.92, 0.58, 0.0)
+	label.position = center + Vector2(-90, -40)
+	add_child(label)
+
+	var tween = create_tween()
+	transient_tweens.append(tween)
+	if trail:
+		var trail_scale = trail.scale
+		trail.scale *= 0.72
+		trail.rotation = -0.08
+		tween.tween_property(trail, "modulate:a", 0.95, 0.12)
+		tween.parallel().tween_property(trail, "scale", trail_scale, 0.28).set_ease(Tween.EASE_OUT)
+		tween.parallel().tween_property(trail, "rotation", 0.04, 0.32)
+	else:
+		tween.tween_interval(0.12)
+	if burst:
+		var burst_scale = burst.scale
+		burst.scale *= 0.45
+		tween.parallel().tween_property(burst, "modulate:a", 1.0, 0.12)
+		tween.parallel().tween_property(burst, "scale", burst_scale, 0.24).set_trans(Tween.TRANS_BACK)
+	tween.parallel().tween_property(label, "modulate:a", 1.0, 0.12)
+	tween.parallel().tween_property(label, "position:y", label.position.y - 20.0, 0.2)
+	tween.tween_interval(0.3)
+	if trail:
+		tween.parallel().tween_property(trail, "modulate:a", 0.0, 0.2)
+	if burst:
+		tween.parallel().tween_property(burst, "modulate:a", 0.0, 0.2)
+	tween.tween_property(label, "modulate:a", 0.0, 0.2)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(label):
+			label.queue_free()
+		if trail and is_instance_valid(trail):
+			trail.queue_free()
+		if burst and is_instance_valid(burst):
+			burst.queue_free()
+	)
+	tween.finished.connect(_remove_transient_tween.bind(tween))
+
+
+func _create_awakening_sprite(texture: Texture2D, node_name: String, center: Vector2, target_width: float) -> Sprite2D:
+	if texture == null or texture.get_width() <= 0:
+		return null
+	var effect = Sprite2D.new()
+	effect.name = node_name
+	effect.texture = texture
+	effect.position = center
+	effect.z_index = 40
+	effect.modulate.a = 0.0
+	var uniform_scale = target_width / float(texture.get_width())
+	effect.scale = Vector2.ONE * uniform_scale
+	add_child(effect)
+	return effect
+
 # ==================== 清理 ====================
 func clear_all_tiles() -> void:
 	for tile in tiles.values():
@@ -227,3 +321,9 @@ func has_tile_at(pos: Vector2i) -> bool:
 
 func get_all_tile_positions() -> Array:
 	return tiles.keys()
+
+
+func _remove_transient_tween(tween: Tween) -> void:
+	var index = transient_tweens.find(tween)
+	if index >= 0:
+		transient_tweens.remove_at(index)

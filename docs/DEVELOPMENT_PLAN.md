@@ -1,5 +1,7 @@
 # 📅 星光花园 - 开发计划
 
+> 文档状态：历史排期参考。Week 1-20、广告和社交里程碑不再作为当前承诺；当前优先级以 [CURRENT_PRODUCT_AND_ARCHITECTURE.md](./CURRENT_PRODUCT_AND_ARCHITECTURE.md) 为准。
+
 ## 📋 项目概览
 
 | 项目 | 内容 |

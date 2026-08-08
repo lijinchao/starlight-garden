@@ -2,13 +2,20 @@
 extends SceneTree
 
 const REQUIRED_DOCS: Array[String] = [
+	"res://VERSION",
+	"res://CHANGELOG.md",
 	"res://README.md",
 	"res://AGENTS.md",
 	"res://docs/STATUS_AND_ITERATION_PLAN.md",
+	"res://docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md",
+	"res://docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md",
 	"res://docs/ITERATION_A_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_B_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_C_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_D_TASK_BREAKDOWN.md",
+	"res://docs/ITERATION_E_TASK_BREAKDOWN.md",
+	"res://docs/ITERATION_F_TASK_BREAKDOWN.md",
+	"res://docs/ITERATION_G_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_TEMPLATE.md",
 	"res://docs/MANUAL_VERIFICATION_GUIDE.md",
 	"res://docs/HARNESS_ENGINEERING.md",
@@ -29,7 +36,12 @@ const MANUAL_REQUIRED_TERMS: Array[String] = [
 	"今日花礼",
 	"每日任务",
 	"花园装饰",
-	"氛围值"
+	"氛围值",
+	"渐进解锁",
+	"结算降噪",
+	"花园恢复",
+	"局内爽感",
+	"清风唤醒"
 ]
 
 const REQUIRED_AUTOLOADS: Array[String] = [
@@ -54,6 +66,7 @@ func _init() -> void:
 	print("=====================================\n")
 
 	_check_required_docs()
+	_check_version_contract()
 	_check_doc_discoverability()
 	_check_iteration_contract()
 	_check_manual_verification_contract()
@@ -84,29 +97,43 @@ func _check_required_docs() -> void:
 		_expect(FileAccess.file_exists(path), "必需文档存在: %s" % path)
 
 
+func _check_version_contract() -> void:
+	var version = _read_text("res://VERSION").strip_edges()
+	var project_config = _read_text("res://project.godot")
+	var changelog = _read_text("res://CHANGELOG.md")
+	_expect(not version.is_empty(), "VERSION 包含版本号")
+	_expect(project_config.contains('config/version="%s"' % version), "project.godot 版本与 VERSION 一致")
+	_expect(changelog.contains("## %s" % version), "CHANGELOG 包含当前版本")
+
+
 func _check_doc_discoverability() -> void:
 	var readme = _read_text("res://README.md")
 	var agents = _read_text("res://AGENTS.md")
 	var test_docs = _read_text("res://tests/TEST_DOCUMENTATION.md")
 
 	_expect(readme.contains("HARNESS_ENGINEERING.md"), "README 暴露 Harness 文档入口")
-	_expect(readme.contains("ITERATION_D_TASK_BREAKDOWN.md"), "README 暴露当前迭代 D 文档入口")
+	_expect(readme.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "README 暴露当前产品与架构基线")
+	_expect(readme.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "README 暴露主题与玩法复盘")
+	_expect(readme.contains("CHANGELOG.md"), "README 暴露版本历史")
+	_expect(readme.contains("ITERATION_G_TASK_BREAKDOWN.md"), "README 暴露当前迭代 G 文档入口")
 	_expect(agents.contains("HARNESS_ENGINEERING.md"), "AGENTS 暴露 Harness 文档入口")
-	_expect(agents.contains("ITERATION_D_TASK_BREAKDOWN.md"), "AGENTS 指向当前迭代 D")
+	_expect(agents.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "AGENTS 暴露当前产品与架构基线")
+	_expect(agents.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "AGENTS 暴露主题与玩法复盘")
+	_expect(agents.contains("ITERATION_G_TASK_BREAKDOWN.md"), "AGENTS 指向当前迭代 G")
 	_expect(test_docs.contains("run_harness.sh"), "测试文档暴露统一 Harness 入口")
 
 
 func _check_iteration_contract() -> void:
-	var iteration = _read_text("res://docs/ITERATION_D_TASK_BREAKDOWN.md")
-	_expect(_contains_any(iteration, ["迭代目标", "迭代 D 目标"]), "当前迭代文档包含迭代目标")
+	var iteration = _read_text("res://docs/ITERATION_G_TASK_BREAKDOWN.md")
+	_expect(_contains_any(iteration, ["迭代目标", "迭代 G 目标"]), "当前迭代文档包含迭代目标")
 	_expect(iteration.contains("产品目标"), "当前迭代文档包含产品目标")
 	_expect(iteration.contains("用户感知"), "当前迭代文档包含用户感知结果")
 	_expect(iteration.contains("目标映射"), "当前迭代文档包含目标映射")
 	_expect(iteration.contains("验证"), "当前迭代文档包含验证方式")
 	_expect(iteration.contains("可评估"), "当前迭代文档包含可评估口径")
 	_expect(iteration.contains("完成"), "当前迭代文档包含完成状态或完成定义")
-	_expect(iteration.contains("花园装饰"), "当前迭代文档覆盖花园装饰")
-	_expect(iteration.contains("氛围值"), "当前迭代文档覆盖氛围值")
+	_expect(iteration.contains("清风唤醒"), "当前迭代文档覆盖清风唤醒机制")
+	_expect(iteration.contains("主题化"), "当前迭代文档覆盖主题化目标表达")
 
 
 func _check_manual_verification_contract() -> void:

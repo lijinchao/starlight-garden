@@ -3,6 +3,7 @@ class_name SimpleGameController
 extends Control
 
 const AsyncUtilsScript = preload("res://scripts/utils/AsyncUtils.gd")
+const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
 
 # 系统
 var board: Board
@@ -14,7 +15,11 @@ var hud_container: VBoxContainer
 var moves_label: Label
 var score_label: Label
 var target_label: Label
+var status_label: Label
+var breeze_btn: Button
 var board_container: Control  # 改为Control类型
+var background_rect: TextureRect
+var background_tint: ColorRect
 
 # 状态
 var selected_tile: Vector2i = Vector2i(-1, -1)
@@ -24,11 +29,11 @@ var combo_count: int = 0
 const FAILURE_CONTINUE_COST: int = 10
 const PRE_LEVEL_BLESSING_COST: int = 12
 const PRE_LEVEL_BLESSING_MOVES: int = 3
+const META_UNLOCK_RUNS: int = 3
 
 func _ready() -> void:
 	# 设置Control大小
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	size = get_viewport_rect().size
 	position = Vector2.ZERO
 	
 	_create_ui()
@@ -48,11 +53,19 @@ func _input(event: InputEvent) -> void:
 
 func _create_ui() -> void:
 	# 创建背景
-	var bg = ColorRect.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.95, 0.95, 0.98, 1)  # 浅蓝色背景
-	bg.name = "Background"
-	add_child(bg)
+	background_rect = TextureRect.new()
+	background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	background_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	background_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background_rect.name = "Background"
+	add_child(background_rect)
+
+	background_tint = ColorRect.new()
+	background_tint.set_anchors_preset(Control.PRESET_FULL_RECT)
+	background_tint.color = Color(0.96, 0.95, 1.0, 0.24)
+	background_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(background_tint)
 	
 	# 创建HUD容器
 	hud_container = VBoxContainer.new()
@@ -81,6 +94,20 @@ func _create_ui() -> void:
 	target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	target_label.add_theme_font_size_override("font_size", 20)
 	hud_container.add_child(target_label)
+
+	status_label = Label.new()
+	status_label.text = ""
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_label.add_theme_font_size_override("font_size", 18)
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.custom_minimum_size = Vector2(360, 40)
+	hud_container.add_child(status_label)
+
+	breeze_btn = Button.new()
+	breeze_btn.custom_minimum_size = Vector2(220, 44)
+	breeze_btn.add_theme_font_size_override("font_size", 18)
+	breeze_btn.pressed.connect(_on_breeze_pressed)
+	hud_container.add_child(breeze_btn)
 	
 	# 创建棋盘容器
 	var board_size = Constants.GRID_COLS * (Constants.TILE_SIZE + Constants.TILE_GAP)
@@ -121,13 +148,22 @@ func _connect_signals() -> void:
 
 func _start_level(level_id: int, bonus_moves: int = 0) -> void:
 	visible = true
+	_update_level_background(level_id)
 	
 	GameManager.start_level(level_id)
+	InLevelAssistService.start_level(level_id)
 	level_system.start_level(level_id, bonus_moves)
 	board.initialize_grid(level_system.level_config)
 	board_visual.initialize_grid(board.grid)
 	_update_hud()
 	combo_count = 0
+	if status_label:
+		status_label.text = level_system.get_target_intro_text()
+
+
+func _update_level_background(level_id: int) -> void:
+	if background_rect:
+		background_rect.texture = VisualAssetCatalogScript.get_game_background(level_id)
 
 func _handle_board_pointer(screen_pos: Vector2) -> void:
 	var local_pos = screen_pos - board_container.position - board_visual.position
@@ -221,6 +257,22 @@ func _process_matches(turn_result: Dictionary) -> void:
 			if combo_count > 1:
 				score = int(score * pow(Constants.COMBO_MULTIPLIER, combo_count - 1))
 			level_system.add_score(score)
+
+		var awakening_count = int(chain_data.get("awakening_count", 0))
+		if awakening_count > 0:
+			var awakening_result = level_system.apply_breeze_awakening(awakening_count)
+			var focus_name = str(awakening_result.get("focus_name", level_system.get_theme_progress_snapshot().get("focus_name", "花圃")))
+			board_visual.show_awakening_animation(
+				_collect_awakening_positions(chain_data.get("awakening_matches", [])),
+				focus_name,
+				str(awakening_result.get("breeze_label", "清风唤醒"))
+			)
+			if status_label:
+				status_label.text = "清风吹开了「%s」，目标推进 +%d" % [
+					focus_name,
+					int(awakening_result.get("bonus_progress", 0))
+				]
+			await AsyncUtilsScript.create_delay_tween(self, 0.35).finished
 		
 		# 显示消除动画（等待完成）
 		for match_data in chain_data["matches"]:
@@ -245,6 +297,60 @@ func _update_hud() -> void:
 		score_label.text = "分数: %d" % level_system.current_score
 	if target_label:
 		target_label.text = level_system.get_target_progress_text()
+	if status_label and status_label.text.is_empty():
+		status_label.text = level_system.get_target_intro_text()
+	_update_breeze_button()
+
+
+func _update_breeze_button() -> void:
+	if not breeze_btn:
+		return
+	var unlocked = int(SaveManager.get_player_data().get("total_runs", 0)) >= META_UNLOCK_RUNS
+	breeze_btn.visible = unlocked
+	if not unlocked:
+		return
+	var remaining = InLevelAssistService.get_breeze_uses_remaining()
+	breeze_btn.text = "星光微风 %d✨ (%d/%d)" % [
+		InLevelAssistService.BREEZE_COST,
+		remaining,
+		InLevelAssistService.BREEZE_MAX_USES_PER_LEVEL
+	]
+	breeze_btn.disabled = remaining <= 0 or not level_system.is_level_active
+
+
+func _on_breeze_pressed() -> void:
+	if int(SaveManager.get_player_data().get("total_runs", 0)) < META_UNLOCK_RUNS:
+		PopupManager.show_toast("先完成前三局，让花园先恢复呼吸。")
+		return
+	if board_processing:
+		PopupManager.show_toast("稍等花朵落定后再试")
+		return
+
+	var hint = board.find_valid_move()
+	if hint.is_empty():
+		PopupManager.show_toast("花园正在整理棋盘，暂时没有提示")
+		return
+
+	var result = InLevelAssistService.try_use_breeze()
+	if not result.get("success", false):
+		PopupManager.show_toast(_get_breeze_error_message(str(result.get("reason", ""))))
+		_update_breeze_button()
+		return
+
+	board_visual.show_hint(hint["pos1"], hint["pos2"])
+	if target_label:
+		target_label.text = "星光微风指向了一步温柔交换"
+	_update_breeze_button()
+
+
+func _get_breeze_error_message(reason: String) -> String:
+	match reason:
+		"not_enough_stars":
+			return "星光不足，先去闯关或收获花朵吧"
+		"limit_reached":
+			return "本局微风已经吹过了"
+		_:
+			return "星光微风暂时不可用"
 
 # ==================== 信号回调 ====================
 func _on_tiles_matched(_positions: Array, _tile_type: int) -> void:
@@ -264,27 +370,37 @@ func _on_level_won(stars: int, score: int) -> void:
 		level_system.current_level_id,
 		stars,
 		score,
-		level_system.level_config
+		level_system.level_config,
+		{"theme_progress": level_system.get_theme_progress_snapshot()}
 	)
 	SettlementService.apply_victory_settlement(settlement)
 
 	if target_label:
 		target_label.text = "🎉 恭喜过关！"
+	if status_label:
+		status_label.text = "这阵清风让花园更亮了一点。"
 
 	PopupManager.show_victory(
 		settlement,
 		func() -> void:
-			_start_level(level_system.current_level_id + 1),
-		func() -> void:
+			if int(settlement.get("player_total_runs_after", 0)) <= META_UNLOCK_RUNS:
+				GameManager.open_garden(settlement)
+				return
 			_start_level(level_system.current_level_id + 1)
 	)
 
 func _on_level_failed() -> void:
-	var settlement = SettlementService.build_failure_settlement(level_system, FAILURE_CONTINUE_COST)
+	var settlement = SettlementService.build_failure_settlement(
+		level_system,
+		FAILURE_CONTINUE_COST,
+		{"theme_progress": level_system.get_theme_progress_snapshot()}
+	)
 	SettlementService.apply_failure_settlement(settlement)
 
 	if target_label:
 		target_label.text = "💫 进入休息时刻"
+	if status_label:
+		status_label.text = "今天也把花园照料了一点。"
 
 	var continue_action = func() -> void:
 		if SettlementService.try_continue_level(level_system, FAILURE_CONTINUE_COST, 5):
@@ -296,10 +412,18 @@ func _on_level_failed() -> void:
 
 	var rest_action = func() -> void:
 		PopupManager.close_popup("failure")
-		GameManager.go_to_menu()
+		GameManager.open_garden(settlement)
 
 	PopupManager.show_failure(
 		settlement,
 		continue_action,
 		rest_action
 	)
+
+
+func _collect_awakening_positions(awakening_matches: Array) -> Array:
+	var positions: Array = []
+	for match_data in awakening_matches:
+		for pos in match_data.get("positions", []):
+			positions.append(pos)
+	return positions

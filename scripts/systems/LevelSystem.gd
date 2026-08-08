@@ -17,6 +17,9 @@ var moves_left: int = 0
 var collected_tiles: Dictionary = {}
 var current_score: int = 0
 var is_level_active: bool = false
+var breeze_awakenings: int = 0
+var breeze_bonus_progress: int = 0
+var last_awakened_focus: String = ""
 
 # ==================== 关卡配置 ====================
 # 获取关卡配置（程序化生成或从文件加载）
@@ -138,11 +141,40 @@ func _normalize_level_config(level_config: Dictionary) -> Dictionary:
 	var normalized = level_config.duplicate(true)
 	var available_types = normalized.get("available_types", _get_default_types())
 	normalized["available_types"] = available_types
+	normalized["target"] = _normalize_target(normalized.get("target", {}))
 	normalized["rewards"] = _normalize_rewards(
 		normalized.get("level_id", 1),
 		available_types,
 		normalized.get("rewards", {})
 	)
+	return normalized
+
+
+func _normalize_target(target: Dictionary) -> Dictionary:
+	var normalized = target.duplicate(true)
+	var requirements = normalized.get("requirements", [])
+	var primary_requirement = requirements[0] if requirements is Array and not requirements.is_empty() else {}
+	var primary_type = int(primary_requirement.get("tile_type", Constants.TileType.RED_ROSE))
+	var flower_name = Constants.TILE_NAMES.get(primary_type, "花圃")
+
+	var theme = {}
+	if normalized.has("theme") and normalized["theme"] is Dictionary:
+		theme = normalized["theme"].duplicate(true)
+
+	if not theme.has("objective_name"):
+		theme["objective_name"] = "唤醒%s花圃" % flower_name
+	if not theme.has("objective_detail"):
+		theme["objective_detail"] = "让一阵清风先吹开这里的枯叶。"
+	if not theme.has("focus_name"):
+		theme["focus_name"] = flower_name
+	if not theme.has("breeze_label"):
+		theme["breeze_label"] = "清风唤醒"
+	if not theme.has("breeze_bonus"):
+		theme["breeze_bonus"] = 2
+	if not theme.has("result_name"):
+		theme["result_name"] = "花圃亮了一点"
+
+	normalized["theme"] = theme
 	return normalized
 
 
@@ -180,6 +212,9 @@ func start_level(level_id: int, bonus_moves: int = 0) -> void:
 	collected_tiles.clear()
 	current_score = 0
 	is_level_active = true
+	breeze_awakenings = 0
+	breeze_bonus_progress = 0
+	last_awakened_focus = ""
 	
 	level_loaded.emit(level_config)
 
@@ -279,12 +314,77 @@ func restart_level() -> void:
 func get_target_progress_text() -> String:
 	var requirements = level_config.get("target", {}).get("requirements", [])
 	var texts = []
+	var theme = get_theme_target_data()
 	
 	for req in requirements:
 		var tile_type = int(req["tile_type"])  # 确保是整数类型
 		var required = req["count"]
 		var collected = collected_tiles.get(str(tile_type), 0)
 		var tile_name = Constants.TILE_NAMES.get(tile_type, "Unknown")
-		texts.append("%s: %d/%d" % [tile_name, collected, required])
+		if not str(theme.get("objective_name", "")).is_empty():
+			texts.append("%s: %d/%d" % [theme.get("objective_name", tile_name), collected, required])
+		else:
+			texts.append("%s: %d/%d" % [tile_name, collected, required])
 	
 	return "\n".join(texts)
+
+
+func get_target_intro_text() -> String:
+	return str(get_theme_target_data().get("objective_detail", "让这里先亮起来。"))
+
+
+func get_theme_target_data() -> Dictionary:
+	var target = level_config.get("target", {})
+	if target is Dictionary and target.get("theme", {}) is Dictionary:
+		return target.get("theme", {})
+	return {}
+
+
+func get_theme_progress_snapshot() -> Dictionary:
+	var theme = get_theme_target_data()
+	return {
+		"objective_name": str(theme.get("objective_name", "")),
+		"objective_detail": str(theme.get("objective_detail", "")),
+		"focus_name": str(theme.get("focus_name", "")),
+		"result_name": str(theme.get("result_name", "")),
+		"breeze_label": str(theme.get("breeze_label", "清风唤醒")),
+		"breeze_bonus": int(theme.get("breeze_bonus", 0)),
+		"awakenings": breeze_awakenings,
+		"bonus_progress": breeze_bonus_progress,
+		"last_awakened_focus": last_awakened_focus
+	}
+
+
+func apply_breeze_awakening(awakening_count: int) -> Dictionary:
+	if awakening_count <= 0:
+		return {}
+
+	var requirements = level_config.get("target", {}).get("requirements", [])
+	if requirements.is_empty():
+		return {}
+
+	var theme = get_theme_target_data()
+	var primary_requirement = requirements[0]
+	var tile_type = int(primary_requirement.get("tile_type", Constants.TileType.RED_ROSE))
+	var bonus_per_awakening = max(1, int(theme.get("breeze_bonus", 2)))
+	var total_bonus = awakening_count * bonus_per_awakening
+
+	var key = str(tile_type)
+	if not collected_tiles.has(key):
+		collected_tiles[key] = 0
+	collected_tiles[key] += total_bonus
+
+	breeze_awakenings += awakening_count
+	breeze_bonus_progress += total_bonus
+	last_awakened_focus = str(theme.get("focus_name", "花圃"))
+
+	target_updated.emit(collected_tiles)
+	if _check_win_condition():
+		_win_level()
+
+	return {
+		"awakening_count": awakening_count,
+		"bonus_progress": total_bonus,
+		"focus_name": last_awakened_focus,
+		"breeze_label": str(theme.get("breeze_label", "清风唤醒"))
+	}

@@ -16,10 +16,12 @@
 
 1. [README.md](/Users/jacklee/workspace/starlight-garden/README.md)
 2. [docs/STATUS_AND_ITERATION_PLAN.md](/Users/jacklee/workspace/starlight-garden/docs/STATUS_AND_ITERATION_PLAN.md)
-3. 当前正在执行的迭代文档
-   默认优先看 [docs/ITERATION_D_TASK_BREAKDOWN.md](/Users/jacklee/workspace/starlight-garden/docs/ITERATION_D_TASK_BREAKDOWN.md)
-4. [docs/HARNESS_ENGINEERING.md](/Users/jacklee/workspace/starlight-garden/docs/HARNESS_ENGINEERING.md)
-5. 如果要新增后续迭代，使用 [docs/ITERATION_TEMPLATE.md](/Users/jacklee/workspace/starlight-garden/docs/ITERATION_TEMPLATE.md)
+3. [docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md](/Users/jacklee/workspace/starlight-garden/docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md)
+4. [docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md](/Users/jacklee/workspace/starlight-garden/docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md)
+5. 当前正在执行的迭代文档
+   默认优先看 [docs/ITERATION_G_TASK_BREAKDOWN.md](/Users/jacklee/workspace/starlight-garden/docs/ITERATION_G_TASK_BREAKDOWN.md)
+6. [docs/HARNESS_ENGINEERING.md](/Users/jacklee/workspace/starlight-garden/docs/HARNESS_ENGINEERING.md)
+7. 如果要新增后续迭代，使用 [docs/ITERATION_TEMPLATE.md](/Users/jacklee/workspace/starlight-garden/docs/ITERATION_TEMPLATE.md)
 
 如果代码实现与旧文档冲突，以“当前代码 + 最新状态文档”为准，不盲从历史描述。
 
@@ -36,6 +38,8 @@
 - 如果这项功能做完，玩家会感知到什么变化？
 
 如果回答不清楚，不应该直接开始实现。
+
+主题、用户和玩法取舍必须在每个新迭代立项前复核，不因工程实现完成而默认继续沿用。
 
 ### 准则二：不接受“只完成代码，不完成价值”
 

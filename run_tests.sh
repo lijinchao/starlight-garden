@@ -32,9 +32,13 @@ echo "🚀 运行测试..."
 echo ""
 
 # 使用Godot运行测试场景
+set +e
 "$GODOT_BIN" --headless --path "$PROJECT_DIR" "res://tests/test_scene.tscn" 2>&1
+TEST_EXIT_CODE=$?
+set -e
 
 echo ""
 echo "====================================="
 echo "   测试完成"
 echo "====================================="
+exit $TEST_EXIT_CODE

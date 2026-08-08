@@ -1,6 +1,8 @@
 ## PopupManager - 弹窗管理器（自动加载单例）
 extends CanvasLayer
 
+const META_UNLOCK_RUNS: int = 3
+
 # ==================== 信号 ====================
 signal popup_closed(popup_name: String)
 
@@ -17,6 +19,13 @@ func _ready() -> void:
 	layer = 100  # 确保在最上层
 	_register_popups()
 
+
+func _exit_tree() -> void:
+	close_all_popups()
+	for child in get_children():
+		if is_instance_valid(child):
+			child.queue_free()
+
 # 注册弹窗场景
 func _register_popups() -> void:
 	# 将在运行时创建弹窗
@@ -25,20 +34,22 @@ func _register_popups() -> void:
 # ==================== 弹窗显示 ====================
 # 显示胜利弹窗
 func show_victory(settlement: Dictionary, on_next_level: Callable = Callable(), on_double_reward: Callable = Callable()) -> void:
-	var popup = _create_victory_popup(settlement)
+	close_popup("victory")
 	popup_actions["victory"] = {
 		"next": on_next_level,
 		"double": on_double_reward
 	}
+	var popup = _create_victory_popup(settlement)
 	_show_popup("victory", popup)
 
 # 显示失败弹窗
 func show_failure(settlement: Dictionary, on_continue: Callable = Callable(), on_rest: Callable = Callable()) -> void:
-	var popup = _create_failure_popup(settlement)
+	close_popup("failure")
 	popup_actions["failure"] = {
 		"continue": on_continue,
 		"rest": on_rest
 	}
+	var popup = _create_failure_popup(settlement)
 	_show_popup("failure", popup)
 
 # 显示暂停弹窗
@@ -84,7 +95,8 @@ func _create_victory_popup(settlement: Dictionary) -> Control:
 	var stars = int(settlement.get("stars_earned", 1))
 	var score = int(settlement.get("score", 0))
 	var level = int(settlement.get("level_id", 1))
-	var reward_lines = SettlementService.format_rewards_summary(settlement)
+	var reward_lines = SettlementService.format_primary_rewards_summary(settlement)
+	var early_focus = int(settlement.get("player_total_runs_after", SaveManager.get_player_data().get("total_runs", 0))) <= META_UNLOCK_RUNS
 
 	var popup = Control.new()
 	popup.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -151,17 +163,17 @@ func _create_victory_popup(settlement: Dictionary) -> Control:
 	
 	# 下一关按钮
 	var next_btn = Button.new()
-	next_btn.text = "下一关"
+	next_btn.text = "回花园看看" if early_focus else "下一关"
 	next_btn.custom_minimum_size = Vector2(120, 50)
 	next_btn.pressed.connect(_on_next_level_pressed)
 	btn_container.add_child(next_btn)
 	
-	# 双倍奖励按钮（看广告）
-	var double_btn = Button.new()
-	double_btn.text = "双倍奖励 📺"
-	double_btn.custom_minimum_size = Vector2(120, 50)
-	double_btn.pressed.connect(_on_double_reward_pressed)
-	btn_container.add_child(double_btn)
+	if popup_actions.get("victory", {}).get("double", Callable()).is_valid():
+		var double_btn = Button.new()
+		double_btn.text = "双倍奖励"
+		double_btn.custom_minimum_size = Vector2(120, 50)
+		double_btn.pressed.connect(_on_double_reward_pressed)
+		btn_container.add_child(double_btn)
 	
 	popup.add_child(panel)
 	return popup
@@ -170,7 +182,8 @@ func _create_victory_popup(settlement: Dictionary) -> Control:
 func _create_failure_popup(settlement: Dictionary) -> Control:
 	var moves_used = int(settlement.get("moves_used", 0))
 	var continue_cost = int(settlement.get("continue_cost", 0))
-	var reward_lines = SettlementService.format_rewards_summary(settlement)
+	var reward_lines = SettlementService.format_primary_rewards_summary(settlement)
+	var early_focus = int(settlement.get("player_total_runs_after", SaveManager.get_player_data().get("total_runs", 0))) <= META_UNLOCK_RUNS
 
 	var popup = Control.new()
 	popup.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -219,7 +232,7 @@ func _create_failure_popup(settlement: Dictionary) -> Control:
 	reward_label.add_theme_font_size_override("font_size", 18)
 	vbox.add_child(reward_label)
 
-	if continue_cost > 0:
+	if continue_cost > 0 and not early_focus:
 		var continue_hint = Label.new()
 		continue_hint.text = "消耗 %d ✨ 可继续获得 5 步" % continue_cost
 		continue_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -234,17 +247,17 @@ func _create_failure_popup(settlement: Dictionary) -> Control:
 	
 	# 休息一下按钮
 	var rest_btn = Button.new()
-	rest_btn.text = "休息一下"
+	rest_btn.text = "回花园看看" if early_focus else "休息一下"
 	rest_btn.custom_minimum_size = Vector2(120, 50)
 	rest_btn.pressed.connect(_on_rest_pressed)
 	btn_container.add_child(rest_btn)
 	
-	# 继续挑战按钮（看广告）
-	var continue_btn = Button.new()
-	continue_btn.text = "继续挑战" if continue_cost > 0 else "继续挑战 📺"
-	continue_btn.custom_minimum_size = Vector2(120, 50)
-	continue_btn.pressed.connect(_on_continue_pressed)
-	btn_container.add_child(continue_btn)
+	if not early_focus:
+		var continue_btn = Button.new()
+		continue_btn.text = "继续挑战" if continue_cost > 0 else "继续挑战 📺"
+		continue_btn.custom_minimum_size = Vector2(120, 50)
+		continue_btn.pressed.connect(_on_continue_pressed)
+		btn_container.add_child(continue_btn)
 	
 	popup.add_child(panel)
 	return popup

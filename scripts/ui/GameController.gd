@@ -14,6 +14,7 @@ var hud_container: VBoxContainer
 var moves_label: Label
 var score_label: Label
 var target_label: Label
+var breeze_btn: Button
 var combo_label: Label
 var status_label: Label
 var board_container: Node2D
@@ -26,6 +27,7 @@ var combo_count: int = 0
 const FAILURE_CONTINUE_COST: int = 10
 const PRE_LEVEL_BLESSING_COST: int = 12
 const PRE_LEVEL_BLESSING_MOVES: int = 3
+const META_UNLOCK_RUNS: int = 3
 
 func _ready() -> void:
 	_create_ui()
@@ -70,6 +72,12 @@ func _create_ui() -> void:
 	target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	target_label.add_theme_font_size_override("font_size", 20)
 	hud_container.add_child(target_label)
+
+	breeze_btn = Button.new()
+	breeze_btn.custom_minimum_size = Vector2(220, 44)
+	breeze_btn.add_theme_font_size_override("font_size", 18)
+	breeze_btn.pressed.connect(_on_breeze_pressed)
+	hud_container.add_child(breeze_btn)
 	
 	# 连击标签
 	combo_label = Label.new()
@@ -125,6 +133,7 @@ func _connect_signals() -> void:
 
 func _start_level(level_id: int, bonus_moves: int = 0) -> void:
 	GameManager.start_level(level_id)
+	InLevelAssistService.start_level(level_id)
 	level_system.start_level(level_id, bonus_moves)
 	board.initialize_grid(level_system.level_config)
 	board_visual.initialize_grid(board.grid)
@@ -240,6 +249,57 @@ func _update_hud() -> void:
 		score_label.text = "分数: %d" % level_system.current_score
 	if target_label:
 		target_label.text = level_system.get_target_progress_text()
+	_update_breeze_button()
+
+
+func _update_breeze_button() -> void:
+	if not breeze_btn:
+		return
+	var unlocked = int(SaveManager.get_player_data().get("total_runs", 0)) >= META_UNLOCK_RUNS
+	breeze_btn.visible = unlocked
+	if not unlocked:
+		return
+	var remaining = InLevelAssistService.get_breeze_uses_remaining()
+	breeze_btn.text = "星光微风 %d✨ (%d/%d)" % [
+		InLevelAssistService.BREEZE_COST,
+		remaining,
+		InLevelAssistService.BREEZE_MAX_USES_PER_LEVEL
+	]
+	breeze_btn.disabled = remaining <= 0 or not level_system.is_level_active
+
+
+func _on_breeze_pressed() -> void:
+	if int(SaveManager.get_player_data().get("total_runs", 0)) < META_UNLOCK_RUNS:
+		PopupManager.show_toast("先完成前三局，让花园先恢复呼吸。")
+		return
+	if is_processing_tile:
+		PopupManager.show_toast("稍等花朵落定后再试")
+		return
+
+	var hint = board.find_valid_move()
+	if hint.is_empty():
+		PopupManager.show_toast("花园正在整理棋盘，暂时没有提示")
+		return
+
+	var result = InLevelAssistService.try_use_breeze()
+	if not result.get("success", false):
+		PopupManager.show_toast(_get_breeze_error_message(str(result.get("reason", ""))))
+		_update_breeze_button()
+		return
+
+	board_visual.show_hint(hint["pos1"], hint["pos2"])
+	status_label.text = "星光微风指向了一步温柔交换"
+	_update_breeze_button()
+
+
+func _get_breeze_error_message(reason: String) -> String:
+	match reason:
+		"not_enough_stars":
+			return "星光不足，先去闯关或收获花朵吧"
+		"limit_reached":
+			return "本局微风已经吹过了"
+		_:
+			return "星光微风暂时不可用"
 
 func _show_combo(count: int) -> void:
 	if not combo_label:
@@ -288,8 +348,9 @@ func _on_level_won(stars: int, score: int) -> void:
 	PopupManager.show_victory(
 		settlement,
 		func() -> void:
-			_start_level(level_system.current_level_id + 1),
-		func() -> void:
+			if int(settlement.get("player_total_runs_after", 0)) <= META_UNLOCK_RUNS:
+				GameManager.open_garden(settlement)
+				return
 			_start_level(level_system.current_level_id + 1)
 	)
 
@@ -314,7 +375,7 @@ func _on_level_failed() -> void:
 
 	var rest_action = func() -> void:
 		PopupManager.close_popup("failure")
-		GameManager.go_to_menu()
+		GameManager.open_garden(settlement)
 
 	PopupManager.show_failure(
 		settlement,

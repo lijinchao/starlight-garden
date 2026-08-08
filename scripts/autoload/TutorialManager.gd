@@ -29,6 +29,7 @@ func reset_tutorial() -> void:
 	var settings = SaveManager.get_settings()
 	settings[TUTORIAL_COMPLETED_KEY] = false
 	SaveManager.update_settings(settings)
+	clear_tutorial_system()
 	print("Tutorial reset")
 
 # 开始引导
@@ -38,7 +39,7 @@ func start_tutorial() -> void:
 		return
 	
 	# 创建引导系统
-	if not tutorial_system:
+	if not is_instance_valid(tutorial_system):
 		tutorial_system = preload("res://scripts/systems/TutorialSystem.gd").new()
 		add_child(tutorial_system)
 	
@@ -63,3 +64,10 @@ func get_tutorial_status() -> String:
 		return "已完成"
 	else:
 		return "未完成"
+
+
+func clear_tutorial_system() -> void:
+	if tutorial_system and is_instance_valid(tutorial_system):
+		tutorial_system.shutdown()
+		tutorial_system.queue_free()
+	tutorial_system = null

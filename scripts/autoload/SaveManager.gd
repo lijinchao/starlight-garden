@@ -11,13 +11,15 @@ const DEFAULT_DATA = {
 		"stars": 0,
 		"coins": 0,
 		"total_score": 0,
+		"total_runs": 0,
 		"cleared_levels": [],
 		"failure_streak": 0
 	},
 	"garden": {
 		"slots": [],
 		"inventory": [],
-		"decorations": []
+		"decorations": [],
+		"restoration_stage": 0
 	},
 	"flower_language": {
 		"fragments": {},
@@ -34,6 +36,53 @@ const DEFAULT_DATA = {
 		"language": "zh_CN"
 	}
 }
+
+const RESTORATION_STAGES: Array[Dictionary] = [
+	{
+		"stage": 0,
+		"name": "沉睡角",
+		"icon": "🌙",
+		"description": "先打一局，让第一束微光落进花园。",
+		"preview": "🪴   🍂   🌙",
+		"next_goal": "再完成 1 局，这里会冒出第一簇新芽。",
+		"focus_title": "左侧空盆",
+		"focus_detail": "第一束微光会先落在左侧空盆。",
+		"focus_slot": 0
+	},
+	{
+		"stage": 1,
+		"name": "发芽角",
+		"icon": "🌱",
+		"description": "第一处花圃苏醒了。",
+		"preview": "🪴   🌱   ✨",
+		"next_goal": "再完成 1 局，会有第一朵花先开。",
+		"focus_title": "第一簇新芽",
+		"focus_detail": "左侧空盆已经冒出第一簇新芽。",
+		"focus_slot": 0
+	},
+	{
+		"stage": 2,
+		"name": "初绽角",
+		"icon": "🌸",
+		"description": "第二处角落开始开花。",
+		"preview": "🌿   🌸   ✨",
+		"next_goal": "再完成 1 局，花园会点亮成微光庭。",
+		"focus_title": "第一朵花",
+		"focus_detail": "中间花圃已经先开出第一朵花。",
+		"focus_slot": 1
+	},
+	{
+		"stage": 3,
+		"name": "微光庭",
+		"icon": "✨",
+		"description": "花园已经会轻轻呼吸了。",
+		"preview": "🌸   ✨   🏡",
+		"next_goal": "前三局恢复完成，接下来可以慢慢装点这里。",
+		"focus_title": "门前微灯",
+		"focus_detail": "门前的微灯已经亮起来了。",
+		"focus_slot": 3
+	}
+]
 
 # 当前存档数据
 var save_data: Dictionary = {}
@@ -94,6 +143,34 @@ func get_garden_data() -> Dictionary:
 func update_garden_data(data: Dictionary) -> void:
 	save_data["garden"] = _normalize_garden_data(data)
 	save_game()
+
+
+func get_restoration_state() -> Dictionary:
+	var garden_data = get_garden_data()
+	var stage = clampi(int(garden_data.get("restoration_stage", 0)), 0, RESTORATION_STAGES.size() - 1)
+	var state = RESTORATION_STAGES[stage].duplicate(true)
+	state["total_stages"] = RESTORATION_STAGES.size() - 1
+	return state
+
+
+func sync_restoration_stage(total_runs: int = -1) -> Dictionary:
+	var normalized_total_runs = total_runs
+	if normalized_total_runs < 0:
+		normalized_total_runs = int(get_player_data().get("total_runs", 0))
+
+	var target_stage = clampi(normalized_total_runs, 0, RESTORATION_STAGES.size() - 1)
+	var garden_data = get_garden_data()
+	var previous_stage = int(garden_data.get("restoration_stage", 0))
+	if previous_stage != target_stage:
+		garden_data["restoration_stage"] = target_stage
+		update_garden_data(garden_data)
+
+	var state = get_restoration_state()
+	state["changed"] = previous_stage != target_stage
+	state["previous_stage"] = previous_stage
+	state["target_stage"] = target_stage
+	state["total_runs"] = normalized_total_runs
+	return state
 
 
 func get_flower_language_data() -> Dictionary:
@@ -219,7 +296,8 @@ func _normalize_garden_data(data: Dictionary) -> Dictionary:
 	var normalized = {
 		"slots": [],
 		"inventory": [],
-		"decorations": []
+		"decorations": [],
+		"restoration_stage": 0
 	}
 
 	if data.has("slots") and data["slots"] is Array:
@@ -232,6 +310,8 @@ func _normalize_garden_data(data: Dictionary) -> Dictionary:
 
 	if data.has("decorations") and data["decorations"] is Array:
 		normalized["decorations"] = data["decorations"].duplicate(true)
+
+	normalized["restoration_stage"] = clampi(int(data.get("restoration_stage", 0)), 0, RESTORATION_STAGES.size() - 1)
 
 	return normalized
 

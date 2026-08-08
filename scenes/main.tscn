@@ -9,7 +9,7 @@ var scene_manager: SceneManager
 func _ready() -> void:
 	print(\"=====================================\")
 	print(\"   星光花园 - Starlight Garden\")
-	print(\"   版本: 1.0.0 MVP\")
+	print(\"   阶段: Pre-MVP Prototype\")
 	print(\"=====================================\")
 	
 	# 动态获取视口大小并设置

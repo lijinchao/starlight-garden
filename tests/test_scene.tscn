@@ -27,6 +27,13 @@ func _on_tests_completed(results: Dictionary) -> void:
 	else:
 		print(\"\\n⚠️ 有 %d 个测试失败\" % results[\"failed\"])
 
+	PopupManager.close_all_popups()
+	TutorialManager.clear_tutorial_system()
+	AudioManager.release_audio_resources()
+	if is_instance_valid(test_runner):
+		test_runner.queue_free()
+	for _i in range(8):
+		await get_tree().process_frame
 	get_tree().quit(results[\"failed\"])
 "
 

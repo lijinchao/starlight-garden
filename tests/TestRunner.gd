@@ -3,6 +3,7 @@ class_name TestRunner
 extends Node
 
 const Fragment = preload("res://scripts/ui/Fragment.gd")
+const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
 
 # ==================== 信号 ====================
 signal test_suite_completed(results: Dictionary)
@@ -14,6 +15,7 @@ var test_results: Dictionary = {
 	"failed": 0,
 	"errors": []
 }
+var enabled_suites: PackedStringArray = []
 
 # ==================== 公开方法 ====================
 # 运行所有测试
@@ -24,16 +26,20 @@ func run_all_tests() -> Dictionary:
 		"failed": 0,
 		"errors": []
 	}
+	enabled_suites = _read_enabled_suites()
 	
 	print("\n=====================================")
 	print("   星光花园 - 测试套件")
 	print("=====================================\n")
+	if not enabled_suites.is_empty():
+		print("筛选套件: %s\n" % ", ".join(enabled_suites))
 	
 	# 运行单元测试
 	_run_test_suite("Constants", Callable(self, "test_constants"))
 	_run_test_suite("Board Logic", Callable(self, "test_board_logic"))
 	_run_test_suite("Board Level Config", Callable(self, "test_board_level_config"))
 	_run_test_suite("Board Visual Input", Callable(self, "test_board_visual_input"))
+	_run_test_suite("Visual Asset Integration", Callable(self, "test_visual_asset_integration"))
 	_run_test_suite("Match Detection", Callable(self, "test_match_detection"))
 	_run_test_suite("Level System", Callable(self, "test_level_system"))
 	_run_test_suite("Level Progression", Callable(self, "test_level_progression"))
@@ -44,6 +50,8 @@ func run_all_tests() -> Dictionary:
 	_run_test_suite("Daily Service", Callable(self, "test_daily_service"))
 	_run_test_suite("Decoration Service", Callable(self, "test_decoration_service"))
 	_run_test_suite("Economy And Boost", Callable(self, "test_economy_and_boost"))
+	_run_test_suite("Progressive Disclosure", Callable(self, "test_progressive_disclosure"))
+	_run_test_suite("Restoration Feedback", Callable(self, "test_restoration_feedback"))
 	_run_test_suite("Save Manager", Callable(self, "test_save_manager"))
 	_run_test_suite("Garden Loop", Callable(self, "test_garden_loop"))
 	_run_test_suite("Garden Synthesis", Callable(self, "test_garden_synthesis"))
@@ -70,9 +78,35 @@ func run_all_tests() -> Dictionary:
 
 # 运行测试套件
 func _run_test_suite(suite_name: String, test_func: Callable) -> void:
+	if not _should_run_suite(suite_name):
+		print("⏭️ 跳过测试套件: %s" % suite_name)
+		print("")
+		return
 	print("📦 测试套件: %s" % suite_name)
 	test_func.call()
 	print("")
+
+
+func _read_enabled_suites() -> PackedStringArray:
+	var raw_value = OS.get_environment("TEST_SUITES").strip_edges()
+	if raw_value.is_empty():
+		return PackedStringArray()
+
+	var suites := PackedStringArray()
+	for item in raw_value.split(","):
+		var normalized = item.strip_edges()
+		if not normalized.is_empty():
+			suites.append(normalized)
+	return suites
+
+
+func _should_run_suite(suite_name: String) -> bool:
+	if enabled_suites.is_empty():
+		return true
+	for candidate in enabled_suites:
+		if candidate.to_lower() == suite_name.to_lower():
+			return true
+	return false
 
 # 断言方法
 func assert_true(condition: bool, message: String = "") -> bool:
@@ -127,6 +161,24 @@ func assert_greater(actual: float, threshold: float, message: String = "") -> bo
 		print("  ❌ %s" % error_msg)
 		return false
 
+
+func _find_button_texts(node: Node) -> Array[String]:
+	var texts: Array[String] = []
+	if node is Button:
+		texts.append((node as Button).text)
+	for child in node.get_children():
+		texts.append_array(_find_button_texts(child))
+	return texts
+
+
+func _find_label_texts(node: Node) -> Array[String]:
+	var texts: Array[String] = []
+	if node is Label:
+		texts.append((node as Label).text)
+	for child in node.get_children():
+		texts.append_array(_find_label_texts(child))
+	return texts
+
 # ==================== 测试用例 ====================
 # 测试常量定义
 func test_constants() -> void:
@@ -157,6 +209,19 @@ func test_board_logic() -> void:
 	assert_true(board.is_adjacent(Vector2i(3, 3), Vector2i(4, 3)), "垂直相邻")
 	assert_true(not board.is_adjacent(Vector2i(3, 3), Vector2i(3, 5)), "不相邻(距离2)")
 	assert_true(not board.is_adjacent(Vector2i(3, 3), Vector2i(4, 4)), "不相邻(对角)")
+
+	board.grid = [
+		[1, 1, 1, 2, 1, 2, 3],
+		[2, 3, 2, 3, 2, 3, 2],
+		[3, 2, 3, 1, 3, 1, 3],
+		[2, 3, 2, 3, 2, 3, 2],
+		[3, 2, 3, 1, 3, 1, 3],
+		[2, 3, 2, 3, 2, 3, 2],
+		[3, 1, 3, 1, 3, 1, 3]
+	]
+	var turn_result = board.resolve_swap(Vector2i(0, 3), Vector2i(0, 4))
+	assert_true(turn_result.get("matched", false), "四连交换会形成有效消除")
+	assert_equal(int(turn_result.get("chains", [])[0].get("awakening_count", 0)), 1, "四连会触发一次清风唤醒")
 	
 	board.free()
 
@@ -197,6 +262,32 @@ func test_board_visual_input() -> void:
 
 	assert_equal(board_visual.last_clicked_pos, Vector2i(0, 0), "棋盘点击映射到正确格子")
 
+	board_visual.free()
+
+
+func test_visual_asset_integration() -> void:
+	var early_background = VisualAssetCatalogScript.get_game_background(1)
+	var regular_background = VisualAssetCatalogScript.get_game_background(4)
+	assert_true(early_background != null, "前3关局内背景素材可加载")
+	assert_true(regular_background != null, "通用局内背景素材可加载")
+	assert_not_equal(early_background.resource_path, regular_background.resource_path, "前期与通用局内背景使用不同素材")
+
+	for tile_type in Constants.TILE_NAMES.keys():
+		var tile_texture = VisualAssetCatalogScript.get_tile_texture(tile_type)
+		assert_true(tile_texture != null, "%s 棋子素材可加载" % Constants.TILE_NAMES[tile_type])
+		assert_true(tile_texture.get_width() > Constants.TILE_SIZE, "%s 棋子素材支持清晰缩放" % Constants.TILE_NAMES[tile_type])
+
+	var tile = Tile.new()
+	tile.initialize(Constants.TileType.RED_ROSE, Vector2i.ZERO)
+	assert_equal(tile.sprite.texture.resource_path, VisualAssetCatalogScript.TILE_TEXTURE_PATHS[Constants.TileType.RED_ROSE], "棋子优先使用本地PNG")
+	assert_true(not tile.label.visible, "使用图形素材后隐藏重复花名标签")
+	tile.free()
+
+	var board_visual = BoardVisual.new()
+	add_child(board_visual)
+	board_visual.show_awakening_animation([Vector2i(0, 0), Vector2i(0, 1)], "左侧花圃")
+	assert_true(board_visual.has_node("BreezeTrail"), "清风唤醒创建轨迹特效")
+	assert_true(board_visual.has_node("BreezeBurst"), "清风唤醒创建闪光特效")
 	board_visual.free()
 
 # 测试匹配检测
@@ -251,6 +342,7 @@ func test_level_system() -> void:
 	assert_true(config.has("rewards"), "关卡配置包含rewards")
 	assert_true(config["rewards"].has("seed_type"), "奖励配置包含seed_type")
 	assert_true(config["rewards"].has("first_clear_bonus"), "奖励配置包含首通奖励")
+	assert_true(config["target"].has("theme"), "前期关卡配置包含主题化目标")
 	
 	# 测试难度递增
 	var config_1 = level_system.get_level_config(1)
@@ -267,6 +359,7 @@ func test_level_system() -> void:
 		level_system.collected_tiles[str(req["tile_type"])] = req["count"]
 	
 	assert_true(level_system._check_win_condition(), "收集完成后胜利")
+	assert_true(level_system.get_target_progress_text().contains("唤醒") or level_system.get_target_progress_text().contains("点亮"), "局内目标进度文本采用主题化表达")
 	
 	level_system.free()
 
@@ -315,15 +408,32 @@ func test_settlement_service() -> void:
 	var level_system = LevelSystem.new()
 	add_child(level_system)
 	level_system.start_level(2)
+	level_system.apply_breeze_awakening(1)
 
-	var victory = SettlementService.build_victory_settlement(2, 3, 180, level_system.level_config)
+	var victory = SettlementService.build_victory_settlement(
+		2,
+		3,
+		180,
+		level_system.level_config,
+		{"theme_progress": level_system.get_theme_progress_snapshot()}
+	)
 	assert_true(victory.get("is_first_clear", false), "首次通关时应识别首通奖励")
 	SettlementService.apply_victory_settlement(victory)
 
 	var player_data = SaveManager.get_player_data()
 	assert_equal(player_data.get("total_score", 0), 180, "胜利结算会写入分数")
+	assert_equal(player_data.get("total_runs", 0), 1, "胜利结算会累计总局数")
 	assert_true(player_data.get("cleared_levels", []).has(2), "胜利结算会记录已通关关卡")
 	assert_equal(player_data.get("stars", 0), 50, "胜利结算会发放基础星光和首通奖励")
+	assert_equal(SaveManager.get_garden_data().get("restoration_stage", -1), 1, "首局胜利后花园恢复阶段推进到1")
+	assert_true(
+		"\n".join(SettlementService.format_primary_rewards_summary(victory)).contains("花园恢复"),
+		"前三局胜利结算首层摘要包含花园恢复反馈"
+	)
+	assert_true(
+		"\n".join(SettlementService.format_primary_rewards_summary(victory)).contains("清风唤醒了"),
+		"前三局胜利结算首层摘要包含局内清风唤醒反馈"
+	)
 
 	var garden = SaveManager.get_garden_data()
 	assert_equal(garden.get("inventory", []).size(), 1, "胜利结算会发放花种")
@@ -336,11 +446,17 @@ func test_settlement_service() -> void:
 	level_system.moves_left = 0
 	level_system._fail_level()
 	level_system.collected_tiles.clear()
-	var failure = SettlementService.build_failure_settlement(level_system, 10)
+	var failure = SettlementService.build_failure_settlement(
+		level_system,
+		10,
+		{"theme_progress": level_system.get_theme_progress_snapshot()}
+	)
 	SettlementService.apply_failure_settlement(failure)
 	player_data = SaveManager.get_player_data()
 	assert_equal(player_data.get("failure_streak", 0), 1, "失败结算会累计失败次数")
+	assert_equal(player_data.get("total_runs", 0), 2, "失败结算会累计总局数")
 	assert_equal(player_data.get("stars", 0), 54, "失败结算会发放保底星光")
+	assert_equal(SaveManager.get_garden_data().get("restoration_stage", -1), 2, "第二局失败后花园恢复阶段推进到2")
 
 	assert_true(SettlementService.try_continue_level(level_system, 10, 5), "星光足够时可继续挑战")
 	player_data = SaveManager.get_player_data()
@@ -354,6 +470,7 @@ func test_settlement_service() -> void:
 	player_data = SaveManager.get_player_data()
 	assert_equal(player_data.get("failure_streak", 0), 2, "连续失败次数会继续累计")
 	assert_equal(player_data.get("stars", 0), 54, "连续失败鼓励会额外增加星光")
+	assert_equal(SaveManager.get_garden_data().get("restoration_stage", -1), 3, "第三局后花园恢复阶段推进到3")
 	var garden_after_failure = SaveManager.get_garden_data()
 	assert_true(garden_after_failure.get("inventory", []).size() >= 1, "连续失败鼓励会发放花种")
 
@@ -384,6 +501,14 @@ func test_flower_language() -> void:
 	assert_true(
 		"\n".join(SettlementService.format_rewards_summary(victory)).contains("花语碎片"),
 		"胜利结算摘要包含花语碎片"
+	)
+	assert_true(
+		not "\n".join(SettlementService.format_primary_rewards_summary(victory)).contains("花语碎片"),
+		"首层胜利结算摘要隐藏普通花语碎片进度"
+	)
+	assert_true(
+		"\n".join(SettlementService.format_primary_rewards_summary(victory)).contains("花园恢复"),
+		"前三局首层胜利结算摘要优先展示花园恢复"
 	)
 
 	var repeat_victory = SettlementService.build_victory_settlement(1, 3, 100, level_system.level_config)
@@ -537,6 +662,158 @@ func test_economy_and_boost() -> void:
 	SaveManager.reset_save()
 
 
+func test_progressive_disclosure() -> void:
+	SaveManager.reset_save()
+
+	var main_menu = MainMenu.new()
+	assert_true(not main_menu.is_flower_journal_unlocked(), "默认不显示花语日记入口")
+	assert_true(not main_menu.is_daily_gift_unlocked(), "默认不显示今日花礼入口")
+
+	FlowerLanguageService.add_fragments(Constants.TileType.RED_ROSE, 1)
+	assert_true(not main_menu.is_flower_journal_unlocked(), "前三局内即使获得碎片也仍隐藏花语日记入口")
+
+	var player_data = SaveManager.get_player_data()
+	player_data["total_runs"] = 1
+	SaveManager.update_player_data(player_data)
+	assert_true(not main_menu.is_daily_gift_unlocked(), "只完成1局时仍隐藏今日花礼入口")
+
+	player_data["total_runs"] = 2
+	SaveManager.update_player_data(player_data)
+	assert_true(not main_menu.is_daily_gift_unlocked(), "完成2局后仍隐藏今日花礼入口")
+
+	var garden_ui = GardenUI.new()
+	assert_true(not garden_ui.is_synthesis_unlocked(), "前三局内不显示合成入口")
+	assert_true(not garden_ui.is_decoration_unlocked(), "前三局内不显示装饰入口")
+
+	player_data["total_runs"] = 3
+	SaveManager.update_player_data(player_data)
+	assert_true(main_menu.is_flower_journal_unlocked(), "完成3局且已有碎片后显示花语日记入口")
+	assert_true(main_menu.is_daily_gift_unlocked(), "完成3局后显示今日花礼入口")
+	assert_true(garden_ui.is_synthesis_unlocked(), "完成3局后显示合成入口")
+	assert_true(garden_ui.is_decoration_unlocked(), "完成3局后显示装饰入口")
+
+	garden_ui.free()
+	main_menu.free()
+	SaveManager.reset_save()
+
+
+func test_restoration_feedback() -> void:
+	SaveManager.reset_save()
+
+	assert_equal(SaveManager.get_garden_data().get("restoration_stage", -1), 0, "默认花园恢复阶段为0")
+	assert_equal(SaveManager.get_restoration_state().get("name", ""), "沉睡角", "默认恢复阶段名称正确")
+	assert_true(not str(SaveManager.get_restoration_state().get("preview", "")).is_empty(), "恢复阶段包含可见预览")
+	assert_equal(SaveManager.get_restoration_state().get("focus_title", ""), "左侧空盆", "默认恢复阶段包含具象修复角落")
+
+	var synced = SaveManager.sync_restoration_stage(1)
+	assert_equal(int(synced.get("target_stage", -1)), 1, "第1局后同步到恢复阶段1")
+	assert_true(bool(synced.get("changed", false)), "恢复阶段首次推进时标记为变化")
+	assert_equal(str(synced.get("focus_title", "")), "第一簇新芽", "第1局后恢复角落变为第一簇新芽")
+
+	synced = SaveManager.sync_restoration_stage(3)
+	assert_equal(int(synced.get("target_stage", -1)), 3, "第3局后同步到恢复阶段3")
+	synced = SaveManager.sync_restoration_stage(8)
+	assert_equal(int(synced.get("target_stage", -1)), 3, "恢复阶段不会在第3局后继续增长")
+
+	SaveManager.reset_save()
+	synced = SaveManager.sync_restoration_stage(1)
+	var scene_manager = SceneManager.new()
+	add_child(scene_manager)
+	GameManager.open_garden({"restoration_progress": synced})
+	assert_equal(scene_manager.current_scene, SceneManager.SceneType.GARDEN, "GameManager 请求会切换到花园场景")
+	assert_equal(scene_manager.garden_ui.last_arrival_message, "花园恢复到「发芽角」", "打开花园时会带入恢复到达反馈")
+	assert_equal(scene_manager.garden_ui.last_arrival_detail, "左侧空盆已经冒出第一簇新芽。", "花园到达反馈会说明具体修好的角落")
+	scene_manager.free()
+
+	var menu = MainMenu.new()
+	add_child(menu)
+	assert_equal(menu.start_btn.text, "✨ 开始修复", "前三局主按钮聚焦修复花园")
+	assert_equal(menu.garden_btn.text, "🌿 看看花园", "前三局花园入口聚焦查看变化")
+	assert_equal(menu.restoration_scene_strip.get_child_count(), 3, "主菜单展示三格恢复小景")
+	assert_equal(menu.restoration_focus_label.text, "现在最明显的是：第一簇新芽", "主菜单展示当前修好的角落")
+	menu.free()
+
+	SaveManager.reset_save()
+	var garden_ui = GardenUI.new()
+	add_child(garden_ui)
+	var slot_zero = garden_ui.flower_slots[0]
+	var slot_zero_box = slot_zero.get_child(0)
+	assert_equal(slot_zero_box.get_node("PotIcon").text, "🍂", "恢复阶段0时空花盆显示枯叶")
+	assert_equal(slot_zero_box.get_node("StatusLabel").text, "静待唤醒", "恢复阶段0时花盆文案提示待修复")
+	garden_ui.free()
+
+	var player_data = SaveManager.get_player_data()
+	player_data["total_runs"] = 3
+	SaveManager.update_player_data(player_data)
+	SaveManager.sync_restoration_stage(3)
+	menu = MainMenu.new()
+	add_child(menu)
+	assert_equal(menu.start_btn.text, "✨ 开始游戏", "完成前三局后主按钮恢复常规开局文案")
+	assert_equal(menu.garden_btn.text, "🌿 我的花园", "完成前三局后花园入口恢复长期表达")
+	menu.free()
+
+	garden_ui = GardenUI.new()
+	add_child(garden_ui)
+	slot_zero = garden_ui.flower_slots[0]
+	slot_zero_box = slot_zero.get_child(0)
+	assert_equal(slot_zero_box.get_node("PotIcon").text, "✨", "恢复阶段3时空花盆显示微光")
+	assert_equal(slot_zero_box.get_node("StatusLabel").text, "微光已落下", "恢复阶段3时花盆文案提示花园已苏醒")
+	assert_equal(garden_ui.restoration_focus_label.text, "现在最明显的是：门前微灯", "花园页展示当前修好的角落")
+	assert_equal(garden_ui.highlighted_restoration_slot, 3, "花园页高亮当前修复角落对应的花盆位")
+	garden_ui.free()
+
+	var early_failure = {
+		"outcome": "failure",
+		"moves_used": 20,
+		"continue_cost": 10,
+		"progress_ratio": 0.5,
+		"player_total_runs_after": 1,
+		"rest_rewards": {
+			"stars": 6,
+			"seed_count": 0,
+			"seed_type": Constants.TileType.RED_ROSE
+		},
+		"restoration_progress": {
+			"changed": true,
+			"name": "发芽角",
+			"focus_title": "第一簇新芽"
+		}
+	}
+	var failure_popup = PopupManager._create_failure_popup(early_failure)
+	var failure_button_texts = _find_button_texts(failure_popup)
+	var failure_label_texts = "\n".join(_find_label_texts(failure_popup))
+	assert_true(not failure_button_texts.has("继续挑战"), "前三局失败弹窗不显示继续挑战入口")
+	assert_true(failure_button_texts.has("回花园看看"), "前三局失败弹窗主按钮引导返回花园")
+	assert_true(failure_label_texts.contains("这次修好了：第一簇新芽"), "前三局失败弹窗会指出修好的角落")
+	failure_popup.free()
+
+	var early_victory = {
+		"outcome": "victory",
+		"level_id": 1,
+		"score": 100,
+		"stars_earned": 3,
+		"player_total_runs_after": 1,
+		"rewards": {
+			"seed_count": 1,
+			"seed_type": Constants.TileType.RED_ROSE,
+			"stars": 20
+		},
+		"restoration_progress": {
+			"changed": true,
+			"name": "发芽角",
+			"focus_title": "第一簇新芽"
+		}
+	}
+	var victory_popup = PopupManager._create_victory_popup(early_victory)
+	var victory_button_texts = _find_button_texts(victory_popup)
+	var victory_label_texts = "\n".join(_find_label_texts(victory_popup))
+	assert_true(victory_button_texts.has("回花园看看"), "前三局胜利弹窗主按钮引导查看花园变化")
+	assert_true(victory_label_texts.contains("这次修好了：第一簇新芽"), "前三局胜利弹窗会指出修好的角落")
+	victory_popup.free()
+
+	SaveManager.reset_save()
+
+
 func test_save_manager() -> void:
 	SaveManager.reset_save()
 
@@ -544,11 +821,13 @@ func test_save_manager() -> void:
 	assert_true(garden.has("slots"), "花园数据包含slots")
 	assert_true(garden.has("inventory"), "花园数据包含inventory")
 	assert_true(garden.has("decorations"), "花园数据包含decorations")
+	assert_true(garden.has("restoration_stage"), "花园数据包含restoration_stage")
 	assert_equal(garden.get("slots", []).size(), 0, "默认花园槽位为空")
 
 	var player = SaveManager.get_player_data()
 	assert_true(player.has("cleared_levels"), "玩家数据包含cleared_levels")
 	assert_true(player.has("failure_streak"), "玩家数据包含failure_streak")
+	assert_true(player.has("total_runs"), "玩家数据包含total_runs")
 
 	SaveManager.update_garden_data({
 		"slots": [{"type": Constants.TileType.RED_ROSE, "level": 1}],
@@ -648,6 +927,7 @@ func test_tutorial_flow() -> void:
 	tutorial_system.notify_action_completed("wait_swap")
 	assert_equal(tutorial_system.current_step, 4, "完成交换后教程自动推进")
 
+	tutorial_system.shutdown()
 	tutorial_system.free()
 	TutorialManager.reset_tutorial()
 
@@ -665,5 +945,6 @@ func test_tutorial_highlight() -> void:
 	tutorial_system._show_step(5)
 	assert_true(tutorial_system.highlight_rect.visible, "步数引导步骤会显示高亮区域")
 
+	tutorial_system.shutdown()
 	tutorial_system.free()
 	TutorialManager.reset_tutorial()

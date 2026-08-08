@@ -161,9 +161,15 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 
 		remove_matched_tiles(chain_matches)
 		var fall_result = _drop_and_fill_collect()
+		var awakening_matches = []
+		for match_data in chain_matches:
+			if int(match_data.get("positions", []).size()) >= 4:
+				awakening_matches.append(match_data)
 
 		chains.append({
 			"matches": chain_matches,
+			"awakening_count": awakening_matches.size(),
+			"awakening_matches": awakening_matches,
 			"movements": fall_result["movements"],
 			"new_tiles": fall_result["new_tiles"]
 		})
@@ -385,25 +391,40 @@ func get_tile_at(pos: Vector2i) -> int:
 
 # 检查是否有可用移动
 func has_valid_moves() -> bool:
+	return not find_valid_move().is_empty()
+
+
+func find_valid_move() -> Dictionary:
 	for row in range(Constants.GRID_ROWS):
 		for col in range(Constants.GRID_COLS):
 			# 检查水平交换
 			if col < Constants.GRID_COLS - 1:
-				swap_tiles(Vector2i(row, col), Vector2i(row, col + 1))
-				if find_all_matches().size() > 0:
-					swap_tiles(Vector2i(row, col), Vector2i(row, col + 1))
-					return true
-				swap_tiles(Vector2i(row, col), Vector2i(row, col + 1))
+				var horizontal_move = _evaluate_potential_move(Vector2i(row, col), Vector2i(row, col + 1))
+				if not horizontal_move.is_empty():
+					return horizontal_move
 			
 			# 检查垂直交换
 			if row < Constants.GRID_ROWS - 1:
-				swap_tiles(Vector2i(row, col), Vector2i(row + 1, col))
-				if find_all_matches().size() > 0:
-					swap_tiles(Vector2i(row, col), Vector2i(row + 1, col))
-					return true
-				swap_tiles(Vector2i(row, col), Vector2i(row + 1, col))
+				var vertical_move = _evaluate_potential_move(Vector2i(row, col), Vector2i(row + 1, col))
+				if not vertical_move.is_empty():
+					return vertical_move
 	
-	return false
+	return {}
+
+
+func _evaluate_potential_move(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
+	swap_tiles(pos1, pos2)
+	var matches = find_all_matches()
+	swap_tiles(pos1, pos2)
+
+	if matches.is_empty():
+		return {}
+
+	return {
+		"pos1": pos1,
+		"pos2": pos2,
+		"matches": matches
+	}
 
 # 重新洗牌
 func shuffle_board() -> void:

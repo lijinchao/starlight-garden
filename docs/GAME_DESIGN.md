@@ -1,5 +1,7 @@
 # 🌸 星光花园 - 游戏设计文档（GDD）
 
+> 文档状态：长期产品愿景，不代表当前版本已实现范围。当前产品裁决以 [CURRENT_PRODUCT_AND_ARCHITECTURE.md](./CURRENT_PRODUCT_AND_ARCHITECTURE.md) 和 [STATUS_AND_ITERATION_PLAN.md](./STATUS_AND_ITERATION_PLAN.md) 为准。
+
 ## 📋 文档信息
 
 | 项目 | 内容 |

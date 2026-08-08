@@ -28,6 +28,7 @@ var player_data: Dictionary = {
 signal state_changed(new_state: GameState)
 signal level_completed(level: int, stars: int)
 signal score_updated(new_score: int)
+signal garden_requested(context: Dictionary)
 
 func _ready() -> void:
 	print("GameManager initialized")
@@ -58,6 +59,10 @@ func game_over() -> void:
 # 返回主菜单
 func go_to_menu() -> void:
 	change_state(GameState.MENU)
+
+
+func open_garden(context: Dictionary = {}) -> void:
+	garden_requested.emit(context)
 
 # 暂停游戏
 func pause_game() -> void:

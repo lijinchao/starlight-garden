@@ -15,6 +15,12 @@ func _ready() -> void:
 	_create_visual()
 	_start_pulse_animation()
 
+
+func _exit_tree() -> void:
+	if pulse_tween and is_instance_valid(pulse_tween):
+		pulse_tween.kill()
+		pulse_tween = null
+
 # ==================== 初始化 ====================
 func initialize(type: int) -> void:
 	flower_type = type
@@ -48,6 +54,9 @@ func _start_pulse_animation() -> void:
 
 func play_collect_animation() -> void:
 	is_collected = true
+	if pulse_tween and is_instance_valid(pulse_tween):
+		pulse_tween.kill()
+		pulse_tween = null
 	var tween = create_tween()
 	tween.parallel().tween_property(sprite, "scale", Vector2(1.5, 1.5), 0.3)
 	tween.parallel().tween_property(sprite, "modulate:a", 0.0, 0.3)

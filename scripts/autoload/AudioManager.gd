@@ -36,6 +36,10 @@ func _ready() -> void:
 	
 	print("AudioManager initialized")
 
+
+func _exit_tree() -> void:
+	release_audio_resources()
+
 # 预生成所有音效
 func _pregenerate_sounds() -> void:
 	sound_cache["click"] = SoundGenerator.generate_click_sound()
@@ -186,3 +190,18 @@ func unmute_all() -> void:
 	sfx_player.volume_db = linear_to_db(sfx_volume)
 	for player in sfx_players:
 		player.volume_db = linear_to_db(sfx_volume)
+
+
+func release_audio_resources() -> void:
+	stop_all_sfx()
+	if bgm_player:
+		bgm_player.stop()
+		bgm_player.stream = null
+	if sfx_player:
+		sfx_player.stop()
+		sfx_player.stream = null
+	for player in sfx_players:
+		if player:
+			player.stop()
+			player.stream = null
+	sound_cache.clear()

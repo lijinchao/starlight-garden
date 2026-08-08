@@ -90,6 +90,15 @@ GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harnes
 ~/workspace/starlight-garden/run_tests.sh
 ```
 
+### 按套件筛选运行
+```bash
+TEST_SUITES="Board Logic,Restoration Feedback" \
+GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" \
+./run_tests.sh
+```
+
+用于定位某一组测试的回归或退出泄漏；不传 `TEST_SUITES` 时仍运行全部套件。
+
 ### 方法2：在Godot中运行
 1. 打开Godot
 2. 运行 `tests/test_scene.tscn`

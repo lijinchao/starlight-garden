@@ -1,5 +1,7 @@
 # 📅 星光花园 - AI辅助开发规划
 
+> 文档状态：历史工作流参考，其中工具名称、周计划和模块设想可能已过时。当前 Agent 入口与工程验证以 [AGENTS.md](../AGENTS.md) 和 [HARNESS_ENGINEERING.md](./HARNESS_ENGINEERING.md) 为准。
+
 ## 📋 项目概览
 
 | 项目 | 内容 |

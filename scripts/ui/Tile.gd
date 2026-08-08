@@ -2,6 +2,8 @@
 class_name Tile
 extends Node2D
 
+const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
+
 # ==================== 变量 ====================
 var tile_type: int = Constants.TileType.NONE
 var grid_position: Vector2i = Vector2i.ZERO
@@ -30,25 +32,30 @@ func initialize(type: int, pos: Vector2i) -> void:
 	background.size = Vector2(Constants.TILE_SIZE, Constants.TILE_SIZE)
 	add_child(background)
 	
-	# 生成纹理
-	var texture = SpriteGenerator.generate_flower_texture(type, Constants.TILE_SIZE)
+	# 普通花朵优先使用位图素材，特殊元素或缺图时保留程序纹理回退。
+	var texture = VisualAssetCatalogScript.get_tile_texture(type)
+	var uses_asset_texture = texture != null
+	if not uses_asset_texture:
+		texture = SpriteGenerator.generate_flower_texture(type, Constants.TILE_SIZE)
 	
 	# 创建精灵（居中偏移）
 	if not sprite:
 		sprite = Sprite2D.new()
-		sprite.offset = Vector2(Constants.TILE_SIZE / 2.0, Constants.TILE_SIZE / 2.0)
+		sprite.position = Vector2(Constants.TILE_SIZE / 2.0, Constants.TILE_SIZE / 2.0)
 		_add_tile_material(sprite)
 		add_child(sprite)
 	sprite.texture = texture
+	_fit_sprite_to_tile(sprite, texture)
 	
 	# 创建高亮效果（居中偏移）
 	if not highlight:
 		highlight = Sprite2D.new()
-		highlight.offset = Vector2(Constants.TILE_SIZE / 2.0, Constants.TILE_SIZE / 2.0)
+		highlight.position = Vector2(Constants.TILE_SIZE / 2.0, Constants.TILE_SIZE / 2.0)
 		highlight.texture = texture
 		highlight.modulate = Color(1, 1, 1, 0.5)
 		highlight.visible = false
 		add_child(highlight)
+	_fit_sprite_to_tile(highlight, texture)
 	
 	# 创建花朵名称标签
 	label = Label.new()
@@ -59,6 +66,7 @@ func initialize(type: int, pos: Vector2i) -> void:
 	label.custom_minimum_size = Vector2(Constants.TILE_SIZE, 20)
 	label.add_theme_font_size_override("font_size", 12)
 	label.add_theme_color_override("font_color", Color(0.2, 0.2, 0.2, 0.8))
+	label.visible = not uses_asset_texture
 	add_child(label)
 	
 	name = "Tile_%d_%d" % [pos.x, pos.y]
@@ -68,6 +76,18 @@ func _add_tile_material(sprite: Sprite2D) -> void:
 	var material = CanvasItemMaterial.new()
 	material.blend_mode = CanvasItemMaterial.BLEND_MODE_MIX
 	sprite.material = material
+
+
+func _fit_sprite_to_tile(target_sprite: Sprite2D, texture: Texture2D) -> void:
+	if texture == null or texture.get_width() <= 0 or texture.get_height() <= 0:
+		target_sprite.scale = Vector2.ONE
+		return
+	var available_size = float(Constants.TILE_SIZE) * 0.9
+	var uniform_scale = minf(
+		available_size / float(texture.get_width()),
+		available_size / float(texture.get_height())
+	)
+	target_sprite.scale = Vector2.ONE * uniform_scale
 
 # 获取花朵简称
 func _get_tile_short_name(type: int) -> String:

@@ -1,6 +1,6 @@
 # 🌸 星光花园 (Starlight Garden)
 
-一款治愈系女性向消除+合成休闲游戏
+一款通过短局花朵三消逐步唤醒花园角落的治愈系小游戏原型
 
 ## 🤖 AI辅助开发
 
@@ -16,40 +16,42 @@
 
 ## 📋 项目概述
 
-- **游戏类型**: 休闲益智 - 消除+合成
-- **目标平台**: 微信小游戏
+- **游戏类型**: 休闲益智 - 花园修复三消
+- **目标平台**: 微信/抖音小游戏方向验证；当前仅完成 Godot Web 原型
 - **开发引擎**: Godot 4.x
 - **导出方式**: HTML5 Web导出
 - **开发方式**: AI辅助开发 (OpenCode + 人工审核)
 
 ## 🎮 核心玩法
 
-1. **消除系统**: 7×7网格，6种花朵元素，3连及以上消除
-2. **关卡系统**: 20个关卡配置，当前以收集目标为主
-3. **花园系统**: 通关获得花种，种植、成长并收获星光
-4. **局外循环**: 星光可用于失败续关、开局祝福，形成基础成长反哺
-5. **花园成长**: 支持配置化奖励、3级内合成、连续失败鼓励
-6. **花语收集**: 通关与失败都会推进花语碎片，解锁后可在花语日记回看
-7. **每日回访**: 今日花礼提供每日任务与轻量奖励
-8. **花园装饰**: 星光可购买固定装饰并提升花园氛围值
+1. **短局三消**: 7×7 网格、6 种花朵、交换消除与连锁。
+2. **主题目标**: 前 5 关围绕唤醒具体花园角落，不只收集颜色。
+3. **清风唤醒**: 四连触发主题反馈并真实推进关卡目标。
+4. **花园恢复**: 前三局持续呈现花园阶段变化，承接胜利和失败结果。
+5. **延后 Meta**: 合成、花语、每日、装饰、祝福和续关已有最小实现，但不作为首屏核心卖点。
 
 ## 📚 项目文档
 
 | 文档 | 说明 |
 |------|------|
+| [当前产品与技术架构对齐审视](./docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md) | 当前产品裁决、唯一运行链路、技术债务和文档冲突处理依据 |
+| [主题与玩法复盘](./docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md) | 目标用户、碎片场景、流行玩法取舍和下一迭代验证门槛 |
 | [当前功能与迭代规划](./docs/STATUS_AND_ITERATION_PLAN.md) | 当前版本真实完成度、功能盘点、下一步策划与需求 |
 | [迭代A目标对齐与验证清单](./docs/ITERATION_A_TASK_BREAKDOWN.md) | 闭合最小主循环的目标映射、验证标准、程序任务与评估口径 |
 | [迭代B目标对齐与验证清单](./docs/ITERATION_B_TASK_BREAKDOWN.md) | 花语碎片、治愈日记与内容留存的目标映射和验证标准 |
 | [迭代C目标对齐与验证清单](./docs/ITERATION_C_TASK_BREAKDOWN.md) | 每日任务、今日花礼与次日回访的目标映射和验证标准 |
 | [迭代D目标对齐与验证清单](./docs/ITERATION_D_TASK_BREAKDOWN.md) | 花园装饰、星光消耗与氛围值的目标映射和验证标准 |
+| [迭代F目标对齐与验证清单](./docs/ITERATION_F_TASK_BREAKDOWN.md) | 前三局体验减法、花园恢复反馈与平台化差异定位 |
+| [迭代G目标对齐与验证清单](./docs/ITERATION_G_TASK_BREAKDOWN.md) | 局内爽感、清风唤醒与主题化目标验证 |
 | [迭代模板](./docs/ITERATION_TEMPLATE.md) | 后续所有迭代统一使用的“目标-功能-验证-评估”模板 |
 | [Harness 工程](./docs/HARNESS_ENGINEERING.md) | Agent 可读的目标、约束、验证入口与机械检查基线 |
 | [手动验证指引](./docs/MANUAL_VERIFICATION_GUIDE.md) | 逐项验证结算、合成、星光用途、失败保底与连续失败鼓励 |
+| [Image 2 素材提示词与接入清单](./docs/IMAGE2_ASSET_PROMPTS.md) | 当前版本素材生成提示词、命名规范、尺寸与落盘路径 |
 | [游戏设计文档](./docs/GAME_DESIGN.md) | 游戏概念、玩法、系统设计 |
 | [市场调研报告](./docs/MARKET_RESEARCH.md) | 市场分析、竞品研究 |
 | [美术风格指南](./docs/ART_STYLE_GUIDE.md) | 色彩、元素、UI设计 |
-| [开发计划](./docs/DEVELOPMENT_PLAN.md) | 版本规划、里程碑 |
-| [AI辅助开发规划](./docs/AI_DEVELOPMENT_PLAN.md) | AI工具使用、工作流程 |
+| [开发计划](./docs/DEVELOPMENT_PLAN.md) | 历史版本规划与里程碑，仅作参考 |
+| [AI辅助开发规划](./docs/AI_DEVELOPMENT_PLAN.md) | 历史 AI 工作流规划，仅作参考 |
 | [代码规范](./docs/CODE_STANDARDS.md) | 编码标准、最佳实践 |
 | [GDScript规则](./docs/GDSCRIPT_RULES.md) | Godot脚本开发规范 |
 | [运行指南](./docs/RUN_GUIDE.md) | 环境配置、运行步骤 |
@@ -123,11 +125,13 @@ starlight-garden/
 GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harness.sh
 ```
 
-该入口会先检查文档、产品目标、关卡配置和核心服务注册，再运行 Godot 自动化测试。详见 [Harness 工程](./docs/HARNESS_ENGINEERING.md)。
+该入口会先导入新增资源，再检查文档、产品目标、关卡配置和核心服务注册，最后运行 Godot 自动化测试。详见 [Harness 工程](./docs/HARNESS_ENGINEERING.md)。
 
 ## 🎯 开发进度
 
 ### 当前版本状态
+
+当前受管理版本：`0.1.0-pre.1`。版本历史见 [CHANGELOG.md](./CHANGELOG.md)，机器可读版本见 [VERSION](./VERSION)。
 
 - [x] 核心消除玩法
 - [x] 基础关卡系统（20关）
@@ -140,12 +144,12 @@ GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harnes
 - [x] 花语碎片收集与花语日记最小版
 - [x] 每日任务与今日花礼最小版
 - [x] 花园装饰系统（最小版）
+- [x] 新玩家入口渐进解锁与结算降噪
+- [x] 花园恢复阶段反馈、具象角落变化与前三局体验减法
+- [x] 前 5 关主题化目标与清风唤醒机制
 - [x] 新手引导
 - [x] 基础UI界面
 - [x] 进度保存
-- [x] 花语收集系统（最小版）
-- [x] 治愈日记系统（最小版）
-- [x] 每日回访系统（最小版）
 - [ ] 剧情系统
 - [ ] 广告真实接入
 - [ ] 微信生态/社交能力

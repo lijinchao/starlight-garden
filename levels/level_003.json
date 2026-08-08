@@ -8,7 +8,15 @@
         "tile_type": 1,
         "count": 16
       }
-    ]
+    ],
+    "theme": {
+      "objective_name": "点亮门前花径",
+      "objective_detail": "把清风送到门前，让花径先亮起来。",
+      "focus_name": "门前花径",
+      "breeze_label": "清风唤醒",
+      "breeze_bonus": 2,
+      "result_name": "门前花径有了第一点微光"
+    }
   },
   "available_types": [
     1,

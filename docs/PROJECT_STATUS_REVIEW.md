@@ -1,5 +1,7 @@
 # 📋 星光花园 - 项目现状评审文档
 
+> 文档状态：历史评审快照。部分问题已经修复，部分仍存在；不可直接作为当前事实。最新裁决见 [CURRENT_PRODUCT_AND_ARCHITECTURE.md](./CURRENT_PRODUCT_AND_ARCHITECTURE.md)。
+
 ## 文档信息
 
 | 项目 | 内容 |

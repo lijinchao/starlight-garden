@@ -1,5 +1,7 @@
 # 📅 星光花园 - 技术整改阶段性方案
 
+> 文档状态：历史整改计划，不等同于当前待办。执行前必须对照现有代码重新确认问题，最新技术风险排序见 [CURRENT_PRODUCT_AND_ARCHITECTURE.md](./CURRENT_PRODUCT_AND_ARCHITECTURE.md)。
+
 ## 文档信息
 
 | 项目 | 内容 |

@@ -30,7 +30,7 @@ Harness 工程的目标是把“产品方向正确、功能可验证、文档代
 
 1. `README.md`
 2. `docs/STATUS_AND_ITERATION_PLAN.md`
-3. 当前迭代文档，默认是 `docs/ITERATION_D_TASK_BREAKDOWN.md`
+3. 当前迭代文档，默认是 `docs/ITERATION_G_TASK_BREAKDOWN.md`
 4. `docs/HARNESS_ENGINEERING.md`
 5. `docs/MANUAL_VERIFICATION_GUIDE.md`
 
@@ -87,7 +87,7 @@ Harness 工程的目标是把“产品方向正确、功能可验证、文档代
 ./run_harness.sh
 ```
 
-该命令会先运行结构和目标检查，再运行现有 Godot 测试。若只需要运行玩法测试，可继续使用：
+该命令会先无界面导入新增图片等项目资源，再运行结构与目标检查和现有 Godot 测试。这样首次检出项目时，资源加载测试也能稳定运行。若只需要运行玩法测试，可继续使用：
 
 ```bash
 ./run_tests.sh

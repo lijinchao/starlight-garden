@@ -34,6 +34,7 @@ var FlowerLanguageUIScript = preload("res://scripts/ui/FlowerLanguageUI.gd")
 var DailyGiftUIScript = preload("res://scripts/ui/DailyGiftUI.gd")
 const PRE_LEVEL_BLESSING_COST: int = 12
 const PRE_LEVEL_BLESSING_MOVES: int = 3
+const META_UNLOCK_RUNS: int = 3
 
 # ==================== 生命周期 ====================
 func _ready() -> void:
@@ -41,6 +42,8 @@ func _ready() -> void:
 	size = get_viewport_rect().size
 	_setup_scenes()
 	_connect_signals()
+	GameManager.state_changed.connect(_on_game_state_changed)
+	GameManager.garden_requested.connect(_on_game_garden_requested)
 	# 默认显示菜单 - 不要在这里自动开始游戏
 	_show_menu()
 
@@ -124,9 +127,9 @@ func _start_game(level_id: int, bonus_moves: int = 0) -> void:
 		await AsyncUtilsScript.create_delay_tween(self, 1.0).finished
 		TutorialManager.start_tutorial()
 
-func _show_garden() -> void:
+func _show_garden(context: Dictionary = {}) -> void:
 	_hide_all_scenes()
-	garden_ui.show_garden()
+	garden_ui.show_garden(context)
 	current_scene = SceneType.GARDEN
 	scene_changed.emit("garden")
 
@@ -160,7 +163,7 @@ func _hide_all_scenes() -> void:
 func _on_start_game() -> void:
 	var player_data = SaveManager.get_player_data()
 	var level = player_data.get("level", 1)
-	if EconomyService.get_stars() < PRE_LEVEL_BLESSING_COST:
+	if int(player_data.get("total_runs", 0)) < META_UNLOCK_RUNS or EconomyService.get_stars() < PRE_LEVEL_BLESSING_COST:
 		_start_game(level)
 		return
 
@@ -230,3 +233,12 @@ func _on_level_won(_stars: int, _score: int) -> void:
 
 func _on_level_failed() -> void:
 	pass
+
+
+func _on_game_state_changed(new_state: int) -> void:
+	if new_state == GameManager.GameState.MENU:
+		_show_menu()
+
+
+func _on_game_garden_requested(context: Dictionary = {}) -> void:
+	_show_garden(context)

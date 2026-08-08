@@ -27,12 +27,36 @@ var next_btn: Button
 var skip_btn: Button
 var pointer: Control
 var highlight_rect: Control
+var pointer_tween: Tween
 
 # ==================== 生命周期 ====================
 func _ready() -> void:
 	layer = 200  # 确保在最上层
 	_create_ui()
 	_load_tutorial_steps()
+
+
+func _exit_tree() -> void:
+	_cleanup_runtime_state()
+
+
+func shutdown() -> void:
+	_cleanup_runtime_state()
+
+
+func _cleanup_runtime_state() -> void:
+	if pointer_tween and is_instance_valid(pointer_tween):
+		pointer_tween.kill()
+		pointer_tween = null
+	current_state = TutorialState.INACTIVE
+	current_step = 0
+	if overlay:
+		overlay.visible = false
+	if dialog_panel:
+		dialog_panel.visible = false
+	if pointer:
+		pointer.visible = false
+	_clear_highlight()
 
 # ==================== UI创建 ====================
 func _create_ui() -> void:
@@ -120,10 +144,10 @@ func _create_pointer() -> Control:
 	pointer_node.add_child(arrow)
 	
 	# 上下浮动动画
-	var tween = create_tween()
-	tween.set_loops()
-	tween.tween_property(arrow, "position:y", 10, 0.5)
-	tween.tween_property(arrow, "position:y", 0, 0.5)
+	pointer_tween = create_tween()
+	pointer_tween.set_loops()
+	pointer_tween.tween_property(arrow, "position:y", 10, 0.5)
+	pointer_tween.tween_property(arrow, "position:y", 0, 0.5)
 	
 	return pointer_node
 

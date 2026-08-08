@@ -8,7 +8,15 @@
         "tile_type": 1,
         "count": 20
       }
-    ]
+    ],
+    "theme": {
+      "objective_name": "吹亮长椅微灯",
+      "objective_detail": "把这一阵清风送到长椅边，让微灯先亮起来。",
+      "focus_name": "长椅微灯",
+      "breeze_label": "清风唤醒",
+      "breeze_bonus": 2,
+      "result_name": "长椅边终于能停留片刻了"
+    }
   },
   "available_types": [
     1,
