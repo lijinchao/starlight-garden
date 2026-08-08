@@ -61,6 +61,9 @@ func _exit_tree() -> void:
 
 # ==================== UI创建 ====================
 func _create_ui() -> void:
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	position = Vector2.ZERO
+
 	# 背景
 	background_rect = TextureRect.new()
 	background_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -649,13 +652,10 @@ func _on_back_pressed() -> void:
 
 # ==================== 公开方法 ====================
 func show_garden(context: Dictionary = {}) -> void:
+	_stop_active_tweens()
 	visible = true
 	_load_garden_data()
-	modulate.a = 0
-	var tween = create_tween()
-	active_tweens.append(tween)
-	tween.tween_property(self, "modulate:a", 1.0, 0.3)
-	tween.finished.connect(_remove_tween.bind(tween))
+	modulate.a = 1.0
 	_play_arrival_feedback(context)
 
 
@@ -667,11 +667,9 @@ func is_decoration_unlocked() -> bool:
 	return int(SaveManager.get_player_data().get("total_runs", 0)) >= META_UNLOCK_RUNS
 
 func hide_garden() -> void:
-	var tween = create_tween()
-	active_tweens.append(tween)
-	tween.tween_property(self, "modulate:a", 0.0, 0.2)
-	tween.tween_callback(func(): visible = false)
-	tween.finished.connect(_remove_tween.bind(tween))
+	_stop_active_tweens()
+	modulate.a = 1.0
+	visible = false
 
 func plant_flower(slot_index: int, flower_type: int, level: int = 1) -> void:
 	var slots = garden_data.get("slots", [])
@@ -789,3 +787,10 @@ func _remove_tween(tween: Tween) -> void:
 	var index = active_tweens.find(tween)
 	if index >= 0:
 		active_tweens.remove_at(index)
+
+
+func _stop_active_tweens() -> void:
+	for tween in active_tweens:
+		if tween and is_instance_valid(tween):
+			tween.kill()
+	active_tweens.clear()

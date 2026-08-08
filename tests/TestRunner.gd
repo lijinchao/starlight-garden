@@ -757,8 +757,14 @@ func test_restoration_feedback() -> void:
 	add_child(scene_manager)
 	GameManager.open_garden({"restoration_progress": synced})
 	assert_equal(scene_manager.current_scene, SceneManager.SceneType.GARDEN, "GameManager 请求会切换到花园场景")
+	assert_true(scene_manager.garden_ui.visible, "花园场景切换后保持可见")
+	assert_equal(scene_manager.garden_ui.anchor_right, 1.0, "花园界面横向铺满父容器")
+	assert_equal(scene_manager.garden_ui.anchor_bottom, 1.0, "花园界面纵向铺满父容器")
+	assert_true(scene_manager.garden_ui.back_btn.visible, "花园返回按钮可见")
 	assert_equal(scene_manager.garden_ui.last_arrival_message, "花园恢复到「发芽角」", "打开花园时会带入恢复到达反馈")
 	assert_equal(scene_manager.garden_ui.last_arrival_detail, "左侧空盆已经冒出第一簇新芽。", "花园到达反馈会说明具体修好的角落")
+	scene_manager.garden_ui.back_btn.pressed.emit()
+	assert_equal(scene_manager.current_scene, SceneManager.SceneType.MENU, "花园返回按钮可回到首页")
 	scene_manager.free()
 
 	var menu = MainMenu.new()
@@ -1006,7 +1012,7 @@ func test_playtest_recording() -> void:
 	assert_equal(events[0].get("event", ""), "level_started", "试玩记录包含事件名称")
 	assert_equal(events[0].get("payload", {}).get("level_id", 0), 1, "试玩记录保留事件负载")
 	assert_true(not str(events[0].get("session_id", "")).is_empty(), "试玩记录包含会话 ID")
-	assert_equal(events[0].get("version", ""), "0.1.0-pre.4", "试玩记录包含当前版本")
+	assert_equal(events[0].get("version", ""), "0.1.0-pre.5", "试玩记录包含当前版本")
 
 	recorder.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
