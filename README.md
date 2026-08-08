@@ -132,7 +132,7 @@ GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harnes
 
 ### 当前版本状态
 
-当前受管理版本：`0.1.0-pre.2`。版本历史见 [CHANGELOG.md](./CHANGELOG.md)，机器可读版本见 [VERSION](./VERSION)。
+当前受管理版本：`0.1.0-pre.3`。版本历史见 [CHANGELOG.md](./CHANGELOG.md)，机器可读版本见 [VERSION](./VERSION)。
 
 - [x] 核心消除玩法
 - [x] 基础关卡系统（20关）

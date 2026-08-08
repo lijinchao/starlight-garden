@@ -226,11 +226,6 @@ func use_move() -> bool:
 	if moves_left > 0:
 		moves_left -= 1
 		moves_updated.emit(moves_left)
-		
-		# 检查是否失败
-		if moves_left <= 0 and not _check_win_condition():
-			_fail_level()
-		
 		return true
 	
 	return false
@@ -246,10 +241,16 @@ func collect_tiles(tile_type: int, count: int) -> void:
 	collected_tiles[type_name] += count
 	
 	target_updated.emit(collected_tiles)
-	
-	# 检查是否胜利
+
+
+# 一次交换的全部匹配、连锁和清风结算后再统一裁决胜负。
+func finish_turn() -> void:
+	if not is_level_active:
+		return
 	if _check_win_condition():
 		_win_level()
+	elif moves_left <= 0:
+		_fail_level()
 
 # 添加分数
 func add_score(points: int) -> void:
@@ -260,7 +261,7 @@ func _check_win_condition() -> bool:
 	var requirements = level_config.get("target", {}).get("requirements", [])
 	
 	for req in requirements:
-		var tile_type = req["tile_type"]
+		var tile_type = int(req["tile_type"])
 		var required_count = req["count"]
 		var collected = collected_tiles.get(str(tile_type), 0)
 		
@@ -356,7 +357,7 @@ func get_theme_progress_snapshot() -> Dictionary:
 
 
 func apply_breeze_awakening(awakening_count: int) -> Dictionary:
-	if awakening_count <= 0:
+	if awakening_count <= 0 or not is_level_active:
 		return {}
 
 	var requirements = level_config.get("target", {}).get("requirements", [])
@@ -379,8 +380,6 @@ func apply_breeze_awakening(awakening_count: int) -> Dictionary:
 	last_awakened_focus = str(theme.get("focus_name", "花圃"))
 
 	target_updated.emit(collected_tiles)
-	if _check_win_condition():
-		_win_level()
 
 	return {
 		"awakening_count": awakening_count,

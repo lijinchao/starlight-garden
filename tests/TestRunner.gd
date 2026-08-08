@@ -358,10 +358,24 @@ func test_level_system() -> void:
 	# 模拟收集完成
 	var requirements = config["target"]["requirements"]
 	for req in requirements:
-		level_system.collected_tiles[str(req["tile_type"])] = req["count"]
+		level_system.collected_tiles[str(int(req["tile_type"]))] = req["count"]
 	
 	assert_true(level_system._check_win_condition(), "收集完成后胜利")
 	assert_true(level_system.get_target_progress_text().contains("唤醒") or level_system.get_target_progress_text().contains("点亮"), "局内目标进度文本采用主题化表达")
+
+	var outcomes = {"won": 0, "failed": 0}
+	level_system.level_won.connect(func(_stars: int, _score: int) -> void: outcomes["won"] += 1)
+	level_system.level_failed.connect(func() -> void: outcomes["failed"] += 1)
+	level_system.start_level(1)
+	var requirement = level_system.level_config["target"]["requirements"][0]
+	var target_key = str(int(requirement["tile_type"]))
+	level_system.collected_tiles[target_key] = int(requirement["count"]) - 2
+	level_system.moves_left = 1
+	level_system.use_move()
+	level_system.apply_breeze_awakening(1)
+	level_system.finish_turn()
+	assert_equal(outcomes["won"], 1, "最后一步清风完成目标时只结算胜利")
+	assert_equal(outcomes["failed"], 0, "最后一步效果完成前不会提前失败")
 	
 	level_system.free()
 
@@ -972,7 +986,7 @@ func test_playtest_recording() -> void:
 	assert_equal(events[0].get("event", ""), "level_started", "试玩记录包含事件名称")
 	assert_equal(events[0].get("payload", {}).get("level_id", 0), 1, "试玩记录保留事件负载")
 	assert_true(not str(events[0].get("session_id", "")).is_empty(), "试玩记录包含会话 ID")
-	assert_equal(events[0].get("version", ""), "0.1.0-pre.2", "试玩记录包含当前版本")
+	assert_equal(events[0].get("version", ""), "0.1.0-pre.3", "试玩记录包含当前版本")
 
 	recorder.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

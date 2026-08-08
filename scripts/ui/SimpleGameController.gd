@@ -243,6 +243,7 @@ func _attempt_swap(pos1: Vector2i, pos2: Vector2i) -> void:
 		TutorialManager.notify_action_completed("wait_swap")
 		# 处理匹配
 		await _process_matches(turn_result)
+		level_system.finish_turn()
 	else:
 		# 无匹配，交换回来
 		board_visual.update_tile_position(pos2, pos1)
