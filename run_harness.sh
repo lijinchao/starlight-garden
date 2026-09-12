@@ -3,7 +3,8 @@
 
 set -e
 
-PROJECT_DIR="/Users/jacklee/workspace/starlight-garden"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$SCRIPT_DIR}"
 GODOT_BIN="${GODOT_BIN:-$(command -v godot4 || command -v godot || true)}"
 HARNESS_HOME="${HARNESS_HOME:-/tmp/starlight-garden-godot-home}"
 
@@ -12,6 +13,7 @@ if [ -z "$GODOT_BIN" ]; then
     exit 1
 fi
 
+mkdir -p "$HARNESS_HOME"
 export HOME="$HARNESS_HOME"
 export XDG_DATA_HOME="$HARNESS_HOME"
 export XDG_CONFIG_HOME="$HARNESS_HOME"

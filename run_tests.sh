@@ -6,8 +6,9 @@ echo "   星光花园 - 测试套件"
 echo "====================================="
 echo ""
 
-# 项目目录
-PROJECT_DIR="/Users/jacklee/workspace/starlight-garden"
+# 项目目录（脚本所在目录，便于 worktree 与 CI）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$SCRIPT_DIR}"
 GODOT_BIN="${GODOT_BIN:-$(command -v godot4 || command -v godot || true)}"
 
 if [ -z "$GODOT_BIN" ]; then
