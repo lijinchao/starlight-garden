@@ -24,7 +24,7 @@ echo "Project: $PROJECT_DIR"
 echo ""
 
 echo "0/4 coding-harness 漂移检查"
-node "$PROJECT_DIR/../coding-harness/bin/harness.mjs" check --manifest "$PROJECT_DIR/harness.manifest.json"
+"$PROJECT_DIR/harness" check --manifest "$PROJECT_DIR/harness.manifest.json"
 echo ""
 
 echo "1/4 导入新增项目资源"

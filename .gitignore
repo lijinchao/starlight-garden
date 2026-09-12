@@ -21,3 +21,6 @@ export/
 
 # Logs
 *.log
+
+# coding-harness base cache
+.harness/
