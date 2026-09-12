@@ -149,9 +149,29 @@ func _check_manual_verification_contract() -> void:
 
 
 func _check_project_autoloads() -> void:
-	var project_config = _read_text("res://project.godot")
+	var autoloads: Dictionary = _parse_autoloads(_read_text("res://project.godot"))
 	for autoload_name in REQUIRED_AUTOLOADS:
-		_expect(project_config.contains(autoload_name), "核心服务已注册 autoload: %s" % autoload_name)
+		_expect(autoloads.has(autoload_name), "核心服务已注册 autoload: %s" % autoload_name)
+
+
+func _parse_autoloads(text: String) -> Dictionary:
+	var autoloads: Dictionary = {}
+	var in_autoload_section := false
+	for raw_line in text.split("\n"):
+		var line := raw_line.strip_edges()
+		if line.begins_with("[") and line.ends_with("]"):
+			in_autoload_section = line == "[autoload]"
+			continue
+		if not in_autoload_section or line.is_empty() or line.begins_with(";"):
+			continue
+		var separator := line.find("=")
+		if separator <= 0:
+			continue
+		var name := line.substr(0, separator).strip_edges()
+		var value := line.substr(separator + 1).strip_edges()
+		if value.contains("res://"):
+			autoloads[name] = value
+	return autoloads
 
 
 func _check_level_configs() -> void:

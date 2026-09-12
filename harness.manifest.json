@@ -45,6 +45,13 @@
       "protects": "the composed AGENTS.md and REVIEW.md match base@0.1.5 plus this repository delta",
       "prove_fires": "hand-edit AGENTS.md, then run ./harness check; expect exit 1",
       "severity": "blocking"
+    },
+    {
+      "id": "godot",
+      "command": "./run_harness.sh",
+      "protects": "the Godot structural contract and the automated play tests stay green",
+      "prove_fires": "break a level reward contract or a test expectation; expect exit 1",
+      "severity": "blocking"
     }
   ],
   "lock": {

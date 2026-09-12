@@ -1,6 +1,6 @@
-# Drift gate for starlight-garden.
-# The base and the tool are released at tag v<version> and fetched by ./harness;
-# no checkout of the coding-harness repository is needed.
+# Harness gate for starlight-garden.
+# The base and tool are released at tag v<version> and fetched by ./harness;
+# one gate list (harness.manifest.json) drives local runs and CI.
 name: harness
 
 on:
@@ -16,5 +16,16 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Fail on harness drift
-        run: ./harness check --manifest harness.manifest.json
+      - name: Install Godot 4.6
+        run: |
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          chmod +x Godot_v4.6-stable_linux.x86_64
+          echo "GODOT_BIN=$PWD/Godot_v4.6-stable_linux.x86_64" >> "$GITHUB_ENV"
+      - name: Install Godot runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+      - name: Run every declared gate
+        run: ./harness gates --manifest harness.manifest.json
