@@ -1,7 +1,7 @@
 ## AudioManager - 全局音频管理器
 extends Node
 
-const SOFT_GARDEN_BGM = preload("res://assets/audio/soft_garden_loop.wav")
+const SOFT_GARDEN_BGM_PATH = "res://assets/audio/soft_garden_loop.wav"
 
 # 音频播放器
 var bgm_player: AudioStreamPlayer
@@ -50,7 +50,8 @@ func _pregenerate_sounds() -> void:
 	sound_cache["fall"] = SoundGenerator.generate_fall_sound()
 	sound_cache["victory"] = SoundGenerator.generate_victory_sound()
 	sound_cache["failure"] = SoundGenerator.generate_failure_sound()
-	var bgm_stream = SOFT_GARDEN_BGM.duplicate() as AudioStreamWAV
+	var bgm_source = load(SOFT_GARDEN_BGM_PATH) as AudioStreamWAV
+	var bgm_stream = bgm_source.duplicate() as AudioStreamWAV
 	bgm_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	bgm_stream.loop_begin = 0
 	bgm_stream.loop_end = int(round(bgm_stream.get_length() * bgm_stream.mix_rate))
