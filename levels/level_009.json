@@ -5,16 +5,25 @@
     "type": "collect",
     "requirements": [
       {
-        "tile_type": 1,
-        "count": 23
+        "tile_type": 5,
+        "count": 16
       }
-    ]
+    ],
+    "theme": {
+      "objective_name": "铺开茉莉石径",
+      "objective_detail": "收集白茉莉，让石径两侧重新开花。",
+      "focus_name": "茉莉石径",
+      "breeze_label": "清风唤醒",
+      "breeze_bonus": 2,
+      "result_name": "石径有了淡淡茉莉香"
+    }
   },
   "available_types": [
     1,
     2,
     3,
-    4
+    4,
+    5
   ],
   "rewards": {
     "seed_type": 5,

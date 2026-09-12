@@ -58,8 +58,14 @@ func show_pause() -> void:
 	_show_popup("pause", popup)
 
 # 显示确认弹窗
-func show_confirm(title: String, message: String, on_confirm: Callable, on_cancel: Callable = Callable()) -> void:
-	var popup = _create_confirm_popup(title, message, on_confirm, on_cancel)
+func show_confirm(
+	title: String,
+	message: String,
+	on_confirm: Callable,
+	on_cancel: Callable = Callable(),
+	preview_texture: Texture2D = null
+) -> void:
+	var popup = _create_confirm_popup(title, message, on_confirm, on_cancel, preview_texture)
 	_show_popup("confirm", popup)
 
 # 显示提示弹窗
@@ -314,21 +320,27 @@ func _create_pause_popup() -> Control:
 	return popup
 
 # 创建确认弹窗
-func _create_confirm_popup(title: String, message: String, on_confirm: Callable, on_cancel: Callable) -> Control:
+func _create_confirm_popup(
+	title: String,
+	message: String,
+	on_confirm: Callable,
+	on_cancel: Callable,
+	preview_texture: Texture2D = null
+) -> Control:
 	var popup = Control.new()
 	popup.set_anchors_preset(Control.PRESET_FULL_RECT)
 	
 	# 背景遮罩
 	var bg = ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0, 0, 0, 0.7)
+	bg.color = Color(0, 0, 0, 0.52 if preview_texture else 0.7)
 	popup.add_child(bg)
 	
 	# 弹窗面板
 	var panel = PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(400, 250)
-	panel.position = Vector2(-200, -125)
+	panel.custom_minimum_size = Vector2(460, 500) if preview_texture else Vector2(400, 250)
+	panel.position = Vector2(-230, -250) if preview_texture else Vector2(-200, -125)
 	
 	# 内容容器
 	var vbox = VBoxContainer.new()
@@ -341,6 +353,16 @@ func _create_confirm_popup(title: String, message: String, on_confirm: Callable,
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.add_theme_font_size_override("font_size", 24)
 	vbox.add_child(title_label)
+
+	if preview_texture:
+		var preview = TextureRect.new()
+		preview.name = "ConfirmPreviewTexture"
+		preview.custom_minimum_size = Vector2(320, 260)
+		preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		preview.texture = preview_texture
+		preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(preview)
 	
 	# 消息
 	var msg_label = Label.new()

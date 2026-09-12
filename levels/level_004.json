@@ -9,6 +9,12 @@
         "count": 19
       }
     ],
+    "garden_layer": {
+      "type": "fallen_leaves",
+      "required": 5,
+      "cells": [[2, 3], [3, 2], [3, 3], [3, 4], [4, 3]],
+      "dew_buds": [[3, 3]]
+    },
     "theme": {
       "objective_name": "唤醒晨露花坛",
       "objective_detail": "让花朵连成一阵风，吹开晨露花坛上的薄雾。",

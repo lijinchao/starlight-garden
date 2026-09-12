@@ -5,10 +5,18 @@
     "type": "collect",
     "requirements": [
       {
-        "tile_type": 1,
-        "count": 24
+        "tile_type": 4,
+        "count": 18
       }
-    ]
+    ],
+    "theme": {
+      "objective_name": "照亮喷泉花环",
+      "objective_detail": "收集黄向日葵，让喷泉边重新有暖光。",
+      "focus_name": "喷泉花环",
+      "breeze_label": "清风唤醒",
+      "breeze_bonus": 2,
+      "result_name": "喷泉花环亮了起来"
+    }
   },
   "available_types": [
     1,

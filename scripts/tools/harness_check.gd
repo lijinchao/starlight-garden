@@ -17,6 +17,9 @@ const REQUIRED_DOCS: Array[String] = [
 	"res://docs/ITERATION_F_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_G_TASK_BREAKDOWN.md",
 	"res://docs/ITERATION_H_TASK_BREAKDOWN.md",
+	"res://docs/ITERATION_I_PRODUCT_LOOP_PLAN.md",
+	"res://docs/ITERATION_J_GARDEN_SPATIAL_PLAY_PLAN.md",
+	"res://docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md",
 	"res://docs/ITERATION_TEMPLATE.md",
 	"res://docs/MANUAL_VERIFICATION_GUIDE.md",
 	"res://docs/HARNESS_ENGINEERING.md",
@@ -47,11 +50,13 @@ const MANUAL_REQUIRED_TERMS: Array[String] = [
 
 const REQUIRED_AUTOLOADS: Array[String] = [
 	"SaveManager",
+	"MetaUnlockService",
 	"SettlementService",
 	"GardenSynthesisService",
 	"EconomyService",
 	"FlowerLanguageService",
 	"DailyService",
+	"DailyChallengeService",
 	"DecorationService"
 ]
 
@@ -116,16 +121,16 @@ func _check_doc_discoverability() -> void:
 	_expect(readme.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "README 暴露当前产品与架构基线")
 	_expect(readme.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "README 暴露主题与玩法复盘")
 	_expect(readme.contains("CHANGELOG.md"), "README 暴露版本历史")
-	_expect(readme.contains("ITERATION_H_TASK_BREAKDOWN.md"), "README 暴露当前迭代 H 文档入口")
+	_expect(readme.contains("ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md"), "README 暴露当前迭代 L 文档入口")
 	_expect(agents.contains("HARNESS_ENGINEERING.md"), "AGENTS 暴露 Harness 文档入口")
 	_expect(agents.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "AGENTS 暴露当前产品与架构基线")
 	_expect(agents.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "AGENTS 暴露主题与玩法复盘")
-	_expect(agents.contains("ITERATION_H_TASK_BREAKDOWN.md"), "AGENTS 指向当前迭代 H")
+	_expect(agents.contains("ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md"), "AGENTS 指向当前迭代 L")
 	_expect(test_docs.contains("run_harness.sh"), "测试文档暴露统一 Harness 入口")
 
 
 func _check_iteration_contract() -> void:
-	var iteration = _read_text("res://docs/ITERATION_H_TASK_BREAKDOWN.md")
+	var iteration = _read_text("res://docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md")
 	_expect(_contains_any(iteration, ["迭代目标", "迭代 H 目标"]), "当前迭代文档包含迭代目标")
 	_expect(iteration.contains("产品目标"), "当前迭代文档包含产品目标")
 	_expect(iteration.contains("用户感知"), "当前迭代文档包含用户感知结果")
@@ -169,6 +174,8 @@ func _check_level_configs() -> void:
 		_expect(_has_collect_target(parsed), "关卡包含收集目标: %s" % level_path)
 		_expect(_has_available_types(parsed), "关卡包含可用元素: %s" % level_path)
 		_expect(_has_reward_contract(parsed), "关卡包含完整奖励契约: %s" % level_path)
+		if level_id >= 2 and level_id <= 5:
+			_expect(_has_garden_layer_contract(parsed, level_id + 1), "前期关卡包含递增落叶布局: %s" % level_path)
 
 		var rewards = parsed.get("rewards", {})
 		seed_types[str(rewards.get("seed_type", ""))] = true
@@ -217,6 +224,16 @@ func _has_reward_contract(config: Dictionary) -> bool:
 		and int(rewards.get("stars", 0)) > 0 \
 		and int(first_clear_bonus.get("stars", 0)) > 0 \
 		and int(first_clear_bonus.get("seed_count", 0)) > 0
+
+
+func _has_garden_layer_contract(config: Dictionary, expected_count: int) -> bool:
+	var layer = config.get("target", {}).get("garden_layer", {})
+	if not layer is Dictionary or layer.get("type", "") != "fallen_leaves":
+		return false
+	var cells = layer.get("cells", [])
+	return cells is Array \
+		and cells.size() == expected_count \
+		and int(layer.get("required", 0)) == expected_count
 
 
 func _read_text(path: String) -> String:

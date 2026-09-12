@@ -17,6 +17,10 @@ var selected_tile: Vector2i = Vector2i(-1, -1)
 var board_processing: bool = false
 var combo_count: int = 0
 var available_types: Array = []
+var garden_layers: Dictionary = {}
+var dew_buds: Dictionary = {}
+var preferred_direction: String = ""
+var random_generator := RandomNumberGenerator.new()
 
 const MAX_CASCADE_CHAINS: int = 8
 
@@ -46,6 +50,25 @@ func configure(level_config: Dictionary = {}) -> void:
 	available_types = level_config.get("available_types", _get_default_types()).duplicate()
 	if available_types.is_empty():
 		available_types = _get_default_types()
+	preferred_direction = str(level_config.get("daily_challenge", {}).get("preferred_direction", ""))
+	var board_seed = int(level_config.get("board_seed", 0))
+	if board_seed != 0:
+		random_generator.seed = board_seed
+	else:
+		random_generator.randomize()
+	garden_layers.clear()
+	var layer_config = level_config.get("target", {}).get("garden_layer", {})
+	for raw_cell in layer_config.get("cells", []):
+		if raw_cell is Array and raw_cell.size() >= 2:
+			var pos = Vector2i(int(raw_cell[0]), int(raw_cell[1]))
+			if _is_valid_position(pos):
+				garden_layers[pos] = true
+	dew_buds.clear()
+	for raw_bud in layer_config.get("dew_buds", []):
+		if raw_bud is Array and raw_bud.size() >= 2:
+			var bud_pos = Vector2i(int(raw_bud[0]), int(raw_bud[1]))
+			if garden_layers.has(bud_pos):
+				dew_buds[bud_pos] = true
 
 
 func _get_default_types() -> Array:
@@ -62,7 +85,7 @@ func _get_default_types() -> Array:
 func _get_random_tile_no_match(row: int, col: int) -> int:
 	# 最多尝试20次
 	for i in range(20):
-		var type = available_types[randi() % available_types.size()]
+		var type = available_types[random_generator.randi_range(0, available_types.size() - 1)]
 		
 		# 检查水平匹配
 		var horizontal_match = false
@@ -165,13 +188,17 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 		var fall_result = _drop_and_fill_collect()
 		var awakening_matches = []
 		for match_data in chain_matches:
-			if int(match_data.get("positions", []).size()) >= 4:
+			if not _get_breeze_paths(match_data.get("positions", [])).is_empty():
 				awakening_matches.append(match_data)
+		var garden_result = _resolve_garden_layers(chain_matches, awakening_matches)
 
 		chains.append({
 			"matches": chain_matches,
 			"awakening_count": awakening_matches.size(),
 			"awakening_matches": awakening_matches,
+			"garden_cleared": garden_result.get("cleared", []),
+			"dew_bursts": garden_result.get("dew_bursts", []),
+			"breeze_paths": garden_result.get("paths", []),
 			"movements": fall_result["movements"],
 			"new_tiles": fall_result["new_tiles"]
 		})
@@ -189,6 +216,96 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 		"chains": chains,
 		"chain_capped": chain_capped
 	}
+
+
+func get_garden_layer_positions() -> Array:
+	return garden_layers.keys()
+
+
+func get_dew_bud_positions() -> Array:
+	return dew_buds.keys()
+
+
+func _resolve_garden_layers(matches: Array, awakening_matches: Array) -> Dictionary:
+	if garden_layers.is_empty():
+		return {"cleared": [], "paths": [], "dew_bursts": []}
+
+	var clear_candidates: Dictionary = {}
+	for match_data in matches:
+		for match_pos in match_data.get("positions", []):
+			for offset in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				var candidate = match_pos + offset
+				if garden_layers.has(candidate):
+					clear_candidates[candidate] = true
+
+	var paths: Array = []
+	for match_data in awakening_matches:
+		for path in _get_breeze_paths(match_data.get("positions", [])):
+			paths.append(path)
+			for layer_pos in garden_layers.keys():
+				if path.get("direction") == "horizontal" and layer_pos.x == int(path.get("index", -1)):
+					clear_candidates[layer_pos] = true
+				elif path.get("direction") == "vertical" and layer_pos.y == int(path.get("index", -1)):
+					clear_candidates[layer_pos] = true
+
+	var dew_bursts: Array = []
+	var pending_buds: Array = []
+	for pos in clear_candidates.keys():
+		if dew_buds.has(pos):
+			pending_buds.append(pos)
+
+	while not pending_buds.is_empty():
+		var bud_pos: Vector2i = pending_buds.pop_front()
+		if not dew_buds.has(bud_pos):
+			continue
+		dew_buds.erase(bud_pos)
+		var burst_cleared: Array = []
+		var burst_distance = 2 if _has_preferred_breeze(paths) else 1
+		for offset in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			for distance in range(1, burst_distance + 1):
+				var candidate = bud_pos + offset * distance
+				if not garden_layers.has(candidate) or clear_candidates.has(candidate):
+					continue
+				clear_candidates[candidate] = true
+				burst_cleared.append(candidate)
+				if dew_buds.has(candidate):
+					pending_buds.append(candidate)
+		dew_bursts.append({
+			"position": bud_pos,
+			"chain_index": dew_bursts.size() + 1,
+			"cleared_positions": burst_cleared
+		})
+
+	var cleared: Array = clear_candidates.keys()
+	for pos in cleared:
+		garden_layers.erase(pos)
+	return {"cleared": cleared, "paths": paths, "dew_bursts": dew_bursts}
+
+
+func _has_preferred_breeze(paths: Array) -> bool:
+	if preferred_direction.is_empty():
+		return false
+	for path in paths:
+		if str(path.get("direction", "")) == preferred_direction:
+			return true
+	return false
+
+
+func _get_breeze_paths(positions: Array) -> Array:
+	var row_counts: Dictionary = {}
+	var column_counts: Dictionary = {}
+	for pos in positions:
+		row_counts[pos.x] = int(row_counts.get(pos.x, 0)) + 1
+		column_counts[pos.y] = int(column_counts.get(pos.y, 0)) + 1
+
+	var paths: Array = []
+	for row in row_counts:
+		if int(row_counts[row]) >= 4:
+			paths.append({"direction": "horizontal", "index": int(row)})
+	for column in column_counts:
+		if int(column_counts[column]) >= 4:
+			paths.append({"direction": "vertical", "index": int(column)})
+	return paths
 
 # ==================== 匹配检测 ====================
 # 查找所有匹配
@@ -410,7 +527,7 @@ func _highlight_tile(_pos: Vector2i, _highlight: bool) -> void:
 
 # 获取随机基础元素
 func get_random_basic_tile() -> int:
-	return available_types[randi() % available_types.size()]
+	return available_types[random_generator.randi_range(0, available_types.size() - 1)]
 
 # 获取元素类型
 func get_tile_at(pos: Vector2i) -> int:
@@ -463,7 +580,11 @@ func shuffle_board() -> void:
 			if grid[row][col] != Constants.TileType.NONE:
 				all_tiles.append(grid[row][col])
 	
-	all_tiles.shuffle()
+	for index in range(all_tiles.size() - 1, 0, -1):
+		var swap_index = random_generator.randi_range(0, index)
+		var temporary = all_tiles[index]
+		all_tiles[index] = all_tiles[swap_index]
+		all_tiles[swap_index] = temporary
 	
 	var index = 0
 	for row in range(Constants.GRID_ROWS):

@@ -32,12 +32,18 @@ const DECORATIONS: Array[Dictionary] = [
 	}
 ]
 
+const PRIMARY_CHOICE_IDS: Array[String] = ["bench", "fountain"]
+
 
 func get_decoration_catalog() -> Array:
 	var catalog: Array = []
 	for decoration in DECORATIONS:
 		catalog.append(decoration.duplicate(true))
 	return catalog
+
+
+func get_decoration(decoration_id: String) -> Dictionary:
+	return _get_decoration_config(decoration_id)
 
 
 func get_owned_decorations() -> Array:
@@ -65,6 +71,16 @@ func purchase_decoration(decoration_id: String) -> Dictionary:
 			"reason": "already_owned",
 			"decoration": config
 		}
+
+	if decoration_id in PRIMARY_CHOICE_IDS:
+		for choice_id in PRIMARY_CHOICE_IDS:
+			if choice_id != decoration_id and is_owned(choice_id):
+				return {
+					"success": false,
+					"reason": "choice_locked",
+					"decoration": config,
+					"owned_choice": choice_id
+				}
 
 	var cost = int(config.get("cost", 0))
 	if not EconomyService.spend_stars(cost):

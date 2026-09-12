@@ -26,7 +26,7 @@
 
 1. **短局三消**: 7×7 网格、6 种花朵、交换消除与连锁。
 2. **主题目标**: 前 5 关围绕唤醒具体花园角落，不只收集颜色。
-3. **清风唤醒**: 四连触发主题反馈并真实推进关卡目标。
+3. **清风路径**: 三连清扫邻近落叶，四连沿横/竖方向吹过整条路径。
 4. **花园恢复**: 前三局持续呈现花园阶段变化，承接胜利和失败结果。
 5. **延后 Meta**: 合成、花语、每日、装饰、祝福和续关已有最小实现，但不作为首屏核心卖点。
 
@@ -44,6 +44,9 @@
 | [迭代F目标对齐与验证清单](./docs/ITERATION_F_TASK_BREAKDOWN.md) | 前三局体验减法、花园恢复反馈与平台化差异定位 |
 | [迭代G目标对齐与验证清单](./docs/ITERATION_G_TASK_BREAKDOWN.md) | 局内爽感、清风唤醒与主题化目标验证 |
 | [迭代H目标对齐与验证清单](./docs/ITERATION_H_TASK_BREAKDOWN.md) | 本地试玩证据采集、汇总工具与产品验证门槛 |
+| [迭代I第4局后闭环重构](./docs/ITERATION_I_PRODUCT_LOOP_PLAN.md) | 关卡目标差异、花园可见结果、返回路径与渐进解锁的阶段计划 |
+| [迭代J花园空间玩法收敛](./docs/ITERATION_J_GARDEN_SPATIAL_PLAY_PLAN.md) | 背景热点、花种选择、永久二选一装饰与试玩门槛 |
+| [迭代L每日风庭玩法验证](./docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md) | 晨露连锁、每日布局差异与可验证试玩门槛 |
 | [迭代模板](./docs/ITERATION_TEMPLATE.md) | 后续所有迭代统一使用的“目标-功能-验证-评估”模板 |
 | [Harness 工程](./docs/HARNESS_ENGINEERING.md) | Agent 可读的目标、约束、验证入口与机械检查基线 |
 | [手动验证指引](./docs/MANUAL_VERIFICATION_GUIDE.md) | 逐项验证结算、合成、星光用途、失败保底与连续失败鼓励 |
@@ -132,7 +135,7 @@ GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harnes
 
 ### 当前版本状态
 
-当前受管理版本：`0.1.0-pre.5`。版本历史见 [CHANGELOG.md](./CHANGELOG.md)，机器可读版本见 [VERSION](./VERSION)。
+当前受管理版本：`0.1.0-pre.9`。版本历史见 [CHANGELOG.md](./CHANGELOG.md)，机器可读版本见 [VERSION](./VERSION)。
 
 - [x] 核心消除玩法
 - [x] 基础关卡系统（20关）

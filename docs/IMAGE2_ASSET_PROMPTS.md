@@ -55,6 +55,10 @@ Dreamy healing casual game art for a mobile match-3 garden game, feminine audien
 | 粉樱花棋子 | `tile_pink_cherry.png` | `512x512` | `assets/sprites/tiles/` |
 | 清风轨迹特效 | `fx_breeze_trail.png` | `1024x512` | `assets/sprites/vfx/` |
 | 唤醒闪光特效 | `fx_breeze_burst.png` | `512x512` | `assets/sprites/vfx/` |
+| 木纹长椅 | `decor_bench.png` | `1024x1024` | `assets/sprites/decorations/` |
+| 星光灯笼 | `decor_lantern.png` | `1024x1024` | `assets/sprites/decorations/` |
+| 小喷泉 | `decor_fountain.png` | `1024x1024` | `assets/sprites/decorations/` |
+| 柔软花篱 | `decor_hedge.png` | `1024x1024` | `assets/sprites/decorations/` |
 
 说明：
 
@@ -184,6 +188,23 @@ Dreamy healing casual game art for a mobile match-3 garden game, feminine audien
 A small awakening burst effect for a garden match-3 game, warm golden glow, soft star particles, subtle floral light bloom, magical but gentle, transparent background, VFX asset, centered, no frame, no text
 ```
 
+### 5.5 花园固定装饰
+
+四张图分别生成，主体依次替换为：
+
+- `a small warm honey-brown wooden garden bench with a sage-green vine and tiny pink flowers`
+- `a slender star-glow garden lantern on a short dark-green metal post with warm golden glass light`
+- `a compact two-tier pale stone garden fountain with clear water streams and subtle moss accents`
+- `a low curved flowering hedge with mixed green leaves and small white, yellow and coral blossoms`
+
+统一提示词后缀：
+
+```text
+gentle hand-painted storybook style, soft rounded forms, three-quarter front view, crisp readable silhouette, centered, fully visible with generous padding, no people, no text, no UI, no frame, no cast shadow, consistent with a cozy casual flower garden game. Place the object on a perfectly flat solid chroma magenta #FF00FF background with no texture, no gradient, no magenta reflections or magenta in the object. Square 1024x1024 composition.
+```
+
+生成后使用 `remove_chroma_key.py` 去除纯色底，并验证 PNG 包含 alpha 通道。
+
 ---
 
 ## 6. 当前项目中的优先替换落点
@@ -263,3 +284,4 @@ transparent background, isolated VFX asset
 - [x] `清风唤醒` 接入轨迹与闪光素材
 - [x] 缺失图片或特殊棋子保留程序纹理回退
 - [x] 自动化测试覆盖素材加载、棋子接入与特效创建
+- [x] 四种花园装饰完成透明化、固定落点预览与购买后持久显示

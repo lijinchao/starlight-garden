@@ -5,13 +5,18 @@
     "type": "collect",
     "requirements": [
       {
-        "tile_type": 1,
-        "count": 20
+        "tile_type": 2,
+        "count": 18
       }
     ],
+    "garden_layer": {
+      "type": "fallen_leaves",
+      "required": 6,
+      "cells": [[1, 1], [1, 5], [3, 2], [3, 4], [5, 1], [5, 5]]
+    },
     "theme": {
       "objective_name": "吹亮长椅微灯",
-      "objective_detail": "把这一阵清风送到长椅边，让微灯先亮起来。",
+      "objective_detail": "收集蓝勿忘我，把这一阵清风送到长椅边。",
       "focus_name": "长椅微灯",
       "breeze_label": "清风唤醒",
       "breeze_bonus": 2,

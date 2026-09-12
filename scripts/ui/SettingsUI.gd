@@ -11,12 +11,17 @@ var bgm_slider: HSlider
 var sfx_slider: HSlider
 var reset_btn: Button
 var tutorial_btn: Button
+var transition_tween: Tween
 
 # ==================== 生命周期 ====================
 func _ready() -> void:
 	_create_ui()
 	_connect_signals()
 	_load_settings()
+
+
+func _exit_tree() -> void:
+	_stop_transition()
 
 # ==================== UI创建 ====================
 func _create_ui() -> void:
@@ -123,7 +128,7 @@ func _connect_signals() -> void:
 func _load_settings() -> void:
 	var settings = SaveManager.get_settings()
 	
-	bgm_slider.value = settings.get("bgm_volume", 0.5) * 100
+	bgm_slider.value = settings.get("bgm_volume", 0.35) * 100
 	sfx_slider.value = settings.get("sfx_volume", 0.7) * 100
 
 func _on_slider_changed(value: float, value_label: Label, setting_name: String) -> void:
@@ -165,13 +170,28 @@ func _on_reset_pressed() -> void:
 
 # ==================== 公开方法 ====================
 func show_settings() -> void:
+	_stop_transition()
 	visible = true
 	_load_settings()
 	modulate.a = 0
-	var tween = create_tween()
-	tween.tween_property(self, "modulate:a", 1.0, 0.3)
+	transition_tween = create_tween()
+	transition_tween.tween_property(self, "modulate:a", 1.0, 0.3)
 
 func hide_settings() -> void:
-	var tween = create_tween()
-	tween.tween_property(self, "modulate:a", 0.0, 0.2)
-	tween.tween_callback(func(): visible = false)
+	_stop_transition()
+	if not visible:
+		return
+	transition_tween = create_tween()
+	transition_tween.tween_property(self, "modulate:a", 0.0, 0.2)
+	transition_tween.tween_callback(_finish_hide)
+
+
+func _finish_hide() -> void:
+	visible = false
+	transition_tween = null
+
+
+func _stop_transition() -> void:
+	if transition_tween and transition_tween.is_valid():
+		transition_tween.kill()
+	transition_tween = null

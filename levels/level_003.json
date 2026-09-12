@@ -5,13 +5,18 @@
     "type": "collect",
     "requirements": [
       {
-        "tile_type": 1,
+        "tile_type": 3,
         "count": 16
       }
     ],
+    "garden_layer": {
+      "type": "fallen_leaves",
+      "required": 4,
+      "cells": [[1, 1], [1, 5], [5, 1], [5, 5]]
+    },
     "theme": {
-      "objective_name": "点亮门前花径",
-      "objective_detail": "把清风送到门前，让花径先亮起来。",
+      "objective_name": "点亮门前薰衣草径",
+      "objective_detail": "收集紫薰衣草，把清风送到门前花径。",
       "focus_name": "门前花径",
       "breeze_label": "清风唤醒",
       "breeze_bonus": 2,

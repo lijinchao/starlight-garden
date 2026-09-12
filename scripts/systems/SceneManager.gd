@@ -29,6 +29,7 @@ var flower_language_ui: FlowerLanguageUI
 var daily_gift_ui: DailyGiftUI
 var settings_ui: SettingsUI
 var playtest_recorder: PlaytestRecorder
+var tutorial_start_generation: int = 0
 
 # 预加载脚本
 var SimpleGameControllerScript = preload("res://scripts/ui/SimpleGameController.gd")
@@ -36,12 +37,11 @@ var FlowerLanguageUIScript = preload("res://scripts/ui/FlowerLanguageUI.gd")
 var DailyGiftUIScript = preload("res://scripts/ui/DailyGiftUI.gd")
 const PRE_LEVEL_BLESSING_COST: int = 12
 const PRE_LEVEL_BLESSING_MOVES: int = 3
-const META_UNLOCK_RUNS: int = 3
 
 # ==================== 生命周期 ====================
 func _ready() -> void:
-	# 动态获取视口大小并设置
-	size = get_viewport_rect().size
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_apply_audio_settings()
 	_setup_scenes()
 	_setup_playtest_recording()
 	_connect_signals()
@@ -49,11 +49,23 @@ func _ready() -> void:
 	GameManager.garden_requested.connect(_on_game_garden_requested)
 	# 默认显示菜单 - 不要在这里自动开始游戏
 	_show_menu()
+	call_deferred("_sync_scene_sizes")
+
+
+func _apply_audio_settings() -> void:
+	var settings = SaveManager.get_settings()
+	AudioManager.set_bgm_volume(float(settings.get("bgm_volume", 0.35)))
+	AudioManager.set_sfx_volume(float(settings.get("sfx_volume", 0.7)))
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and is_node_ready():
+		_sync_scene_sizes()
 
 # ==================== 场景设置 ====================
 func _setup_scenes() -> void:
 	# 设置SceneManager自身为全屏
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	
 	# 创建主菜单
 	main_menu = MainMenu.new()
@@ -85,6 +97,14 @@ func _setup_scenes() -> void:
 	settings_ui.visible = false
 	add_child(settings_ui)
 
+
+func _sync_scene_sizes() -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for scene in [main_menu, game_controller, garden_ui, flower_language_ui, daily_gift_ui, settings_ui]:
+		if scene == null:
+			continue
+		scene.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
 func _connect_signals() -> void:
 	# 主菜单信号
 	main_menu.start_game.connect(_on_start_game)
@@ -92,22 +112,30 @@ func _connect_signals() -> void:
 	main_menu.open_flower_journal.connect(_on_open_flower_journal)
 	main_menu.open_daily_gift.connect(_on_open_daily_gift)
 	main_menu.open_settings.connect(_on_open_settings)
+	main_menu.playtest_event.connect(_on_playtest_event)
 	
 	# 花园信号
 	garden_ui.back_pressed.connect(_on_garden_back)
+	garden_ui.playtest_event.connect(_on_playtest_event)
 
 	# 花语日记信号
 	flower_language_ui.back_pressed.connect(_on_flower_journal_back)
+	flower_language_ui.start_level_requested.connect(_on_secondary_start_level)
 
 	# 今日花礼信号
 	daily_gift_ui.back_pressed.connect(_on_daily_gift_back)
+	daily_gift_ui.action_requested.connect(_on_daily_action_requested)
 	
 	# 设置信号
 	settings_ui.back_pressed.connect(_on_settings_back)
 	game_controller.first_interaction.connect(_on_playtest_first_interaction)
 	game_controller.breeze_awakened.connect(_on_playtest_breeze_awakened)
+	game_controller.garden_layer_cleared.connect(_on_playtest_garden_layer_cleared)
+	game_controller.dew_bud_triggered.connect(_on_playtest_dew_bud_triggered)
+	game_controller.daily_challenge_retried.connect(_on_playtest_daily_challenge_retried)
 	game_controller.invalid_swap.connect(_on_playtest_invalid_swap)
 	game_controller.level_settled.connect(_on_playtest_level_settled)
+	game_controller.home_requested.connect(_on_game_home_requested)
 
 
 func _setup_playtest_recording() -> void:
@@ -141,7 +169,14 @@ func _start_game(level_id: int, bonus_moves: int = 0) -> void:
 	
 	# 显示新手引导（如果是第一次玩）
 	if TutorialManager.should_show_tutorial():
+		var request_generation = tutorial_start_generation
 		await AsyncUtilsScript.create_delay_tween(self, 1.0).finished
+		if request_generation != tutorial_start_generation:
+			return
+		if current_scene != SceneType.GAME or not game_controller.visible:
+			return
+		if GameManager.current_state != GameManager.GameState.PLAYING:
+			return
 		TutorialManager.start_tutorial()
 
 func _show_garden(context: Dictionary = {}) -> void:
@@ -160,12 +195,22 @@ func _show_flower_journal() -> void:
 	flower_language_ui.show_journal()
 	current_scene = SceneType.FLOWER_JOURNAL
 	scene_changed.emit("flower_journal")
+	if MetaUnlockService.complete_feature_task(MetaUnlockService.FEATURE_FLOWER_JOURNAL):
+		playtest_recorder.record_event("home_recommendation_completed", {
+			"feature_id": MetaUnlockService.FEATURE_FLOWER_JOURNAL,
+			"stage": "task_completed"
+		})
 
 func _show_daily_gift() -> void:
 	_hide_all_scenes()
 	daily_gift_ui.show_daily_gift()
 	current_scene = SceneType.DAILY_GIFT
 	scene_changed.emit("daily_gift")
+	if MetaUnlockService.complete_feature_task(MetaUnlockService.FEATURE_DAILY_GIFT):
+		playtest_recorder.record_event("home_recommendation_completed", {
+			"feature_id": MetaUnlockService.FEATURE_DAILY_GIFT,
+			"stage": "task_completed"
+		})
 
 func _show_settings() -> void:
 	_hide_all_scenes()
@@ -174,6 +219,7 @@ func _show_settings() -> void:
 	scene_changed.emit("settings")
 
 func _hide_all_scenes() -> void:
+	_cancel_pending_tutorial()
 	main_menu.visible = false
 	game_controller.visible = false
 	garden_ui.hide_garden()
@@ -181,13 +227,23 @@ func _hide_all_scenes() -> void:
 	daily_gift_ui.hide_daily_gift()
 	settings_ui.hide_settings()
 
+
+func _cancel_pending_tutorial() -> void:
+	tutorial_start_generation += 1
+	TutorialManager.clear_tutorial_system()
+
 # ==================== 信号处理 ====================
 func _on_start_game() -> void:
 	var player_data = SaveManager.get_player_data()
 	var level = player_data.get("level", 1)
-	if int(player_data.get("total_runs", 0)) < META_UNLOCK_RUNS or EconomyService.get_stars() < PRE_LEVEL_BLESSING_COST:
+	if not MetaUnlockService.is_unlocked(MetaUnlockService.FEATURE_STAR_BLESSING) or EconomyService.get_stars() < PRE_LEVEL_BLESSING_COST:
 		_start_game(level)
 		return
+	if MetaUnlockService.complete_feature_task(MetaUnlockService.FEATURE_STAR_BLESSING):
+		playtest_recorder.record_event("home_recommendation_completed", {
+			"feature_id": MetaUnlockService.FEATURE_STAR_BLESSING,
+			"stage": "task_completed"
+		})
 
 	var confirm_action = func() -> void:
 		if EconomyService.spend_stars(PRE_LEVEL_BLESSING_COST):
@@ -226,16 +282,68 @@ func _on_hint_pressed() -> void:
 	PopupManager.show_toast("提示：寻找可以形成3连的交换！")
 
 func _on_garden_back() -> void:
-	_show_menu()
+	GameManager.go_to_menu()
 
 func _on_flower_journal_back() -> void:
+	playtest_recorder.record_event("secondary_page_returned", {"page": "flower_journal"})
 	_show_menu()
 
 func _on_daily_gift_back() -> void:
+	playtest_recorder.record_event("secondary_page_returned", {"page": "daily_gift"})
 	_show_menu()
 
 func _on_settings_back() -> void:
+	playtest_recorder.record_event("secondary_page_returned", {"page": "settings"})
 	_show_menu()
+
+
+func _on_secondary_start_level(level_id: int) -> void:
+	_start_game(level_id)
+
+
+func _on_daily_action_requested(action: String, level_id: int) -> void:
+	if action == "garden":
+		_show_garden()
+	elif action == "daily_challenge":
+		_start_daily_challenge()
+	else:
+		_start_game(level_id)
+
+
+func _start_daily_challenge() -> void:
+	var daily_challenge = DailyChallengeService.get_today_challenge()
+	var config = daily_challenge.get("config", {})
+	if config.is_empty():
+		PopupManager.show_toast("今日风庭正在准备，请稍后再试")
+		return
+	_hide_all_scenes()
+	game_controller.visible = true
+	game_controller._start_daily_challenge(config)
+	playtest_recorder.record_event("daily_challenge_started", {
+		"challenge_id": str(daily_challenge.get("challenge", {}).get("challenge_id", "")),
+		"layout_id": str(daily_challenge.get("challenge", {}).get("layout_id", "")),
+		"transform": str(daily_challenge.get("challenge", {}).get("transform", "")),
+		"preferred_direction": str(daily_challenge.get("challenge", {}).get("preferred_direction", "")),
+		"attempts_before": int(DailyChallengeService.get_today_progress().get("attempts", 0))
+	})
+	current_scene = SceneType.GAME
+	scene_changed.emit("game")
+
+
+func _on_game_home_requested() -> void:
+	if current_scene != SceneType.GAME:
+		return
+	PopupManager.show_confirm(
+		"返回主页",
+		"本局尚未结算，当前棋盘进度不会保留。",
+		_leave_game_to_menu
+	)
+
+
+func _leave_game_to_menu() -> void:
+	game_controller.cancel_level()
+	_cancel_pending_tutorial()
+	GameManager.go_to_menu()
 
 # ==================== 游戏信号处理（由GameController处理） ====================
 func _on_tiles_matched(_positions: Array, _tile_type: int) -> void:
@@ -274,9 +382,27 @@ func _on_playtest_breeze_awakened(payload: Dictionary) -> void:
 	playtest_recorder.record_event("breeze_awakened", payload)
 
 
+func _on_playtest_garden_layer_cleared(payload: Dictionary) -> void:
+	playtest_recorder.record_event("garden_layer_cleared", payload)
+
+
+func _on_playtest_dew_bud_triggered(payload: Dictionary) -> void:
+	playtest_recorder.record_event("dew_bud_triggered", payload)
+
+
+func _on_playtest_daily_challenge_retried(payload: Dictionary) -> void:
+	playtest_recorder.record_event("daily_challenge_retried", payload)
+
+
 func _on_playtest_invalid_swap(payload: Dictionary) -> void:
 	playtest_recorder.record_event("invalid_swap", payload)
 
 
 func _on_playtest_level_settled(payload: Dictionary) -> void:
 	playtest_recorder.record_event("level_settled", payload)
+	if bool(payload.get("is_daily_challenge", false)):
+		playtest_recorder.record_event("daily_challenge_settled", payload)
+
+
+func _on_playtest_event(event_name: String, payload: Dictionary) -> void:
+	playtest_recorder.record_event(event_name, payload)

@@ -3,9 +3,11 @@ class_name FlowerLanguageUI
 extends Control
 
 signal back_pressed()
+signal start_level_requested(level_id: int)
 
 var back_btn: Button
 var entries_list: VBoxContainer
+var action_btn: Button
 
 
 func _ready() -> void:
@@ -35,6 +37,7 @@ func _create_ui() -> void:
 	title.text = "📖 花语日记"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", Color(0.24, 0.18, 0.30))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_bar.add_child(title)
 
@@ -51,10 +54,19 @@ func _create_ui() -> void:
 	subtitle.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	add_child(subtitle)
 
+	action_btn = Button.new()
+	action_btn.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	action_btn.offset_left = 180
+	action_btn.offset_top = 120
+	action_btn.offset_right = -180
+	action_btn.offset_bottom = 174
+	action_btn.add_theme_font_size_override("font_size", 18)
+	add_child(action_btn)
+
 	var scroll = ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.offset_left = 40
-	scroll.offset_top = 150
+	scroll.offset_top = 190
 	scroll.offset_right = -40
 	scroll.offset_bottom = -40
 	add_child(scroll)
@@ -66,6 +78,7 @@ func _create_ui() -> void:
 
 func _connect_signals() -> void:
 	back_btn.pressed.connect(_on_back_pressed)
+	action_btn.pressed.connect(_on_action_pressed)
 
 
 func _update_entries() -> void:
@@ -75,8 +88,31 @@ func _update_entries() -> void:
 	for child in entries_list.get_children():
 		child.queue_free()
 
-	for entry in FlowerLanguageService.get_journal_entries():
+	var entries = FlowerLanguageService.get_journal_entries()
+	for entry in entries:
 		entries_list.add_child(_create_entry_card(entry))
+	_update_action(entries)
+
+
+func _update_action(entries: Array) -> void:
+	var has_locked_entry = false
+	for entry in entries:
+		if not entry.get("unlocked", false):
+			has_locked_entry = true
+			break
+	action_btn.visible = has_locked_entry
+	if not has_locked_entry:
+		return
+	var level_id = int(SaveManager.get_player_data().get("level", 1))
+	var level_system = LevelSystem.new()
+	var config = level_system.get_level_config(level_id)
+	level_system.free()
+	var flower_type = int(config.get("rewards", {}).get("seed_type", Constants.TileType.RED_ROSE))
+	action_btn.text = "去第 %d 关收集%s花语碎片" % [
+		level_id,
+		Constants.TILE_NAMES.get(flower_type, "花朵")
+	]
+	action_btn.set_meta("level_id", level_id)
 
 
 func _create_entry_card(entry: Dictionary) -> Control:
@@ -93,6 +129,7 @@ func _create_entry_card(entry: Dictionary) -> Control:
 		entry.get("name", "花朵")
 	]
 	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color(0.94, 0.92, 0.96))
 	vbox.add_child(title)
 
 	var progress = Label.new()
@@ -101,6 +138,7 @@ func _create_entry_card(entry: Dictionary) -> Control:
 		int(entry.get("required_fragments", FlowerLanguageService.FRAGMENTS_TO_UNLOCK))
 	]
 	progress.add_theme_font_size_override("font_size", 16)
+	progress.add_theme_color_override("font_color", Color(0.88, 0.86, 0.91))
 	vbox.add_child(progress)
 
 	var language = Label.new()
@@ -109,7 +147,7 @@ func _create_entry_card(entry: Dictionary) -> Control:
 		language.modulate = Color(0.35, 0.25, 0.45)
 	else:
 		language.text = "继续收集碎片，解锁这朵花的心意。"
-		language.modulate = Color(0.55, 0.55, 0.60)
+		language.modulate = Color(0.86, 0.84, 0.89)
 	language.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	language.add_theme_font_size_override("font_size", 17)
 	vbox.add_child(language)
@@ -138,6 +176,11 @@ func _get_flower_icon(flower_type: int) -> String:
 func _on_back_pressed() -> void:
 	AudioManager.play_ui_click()
 	back_pressed.emit()
+
+
+func _on_action_pressed() -> void:
+	AudioManager.play_ui_click()
+	start_level_requested.emit(int(action_btn.get_meta("level_id", 1)))
 
 
 func show_journal() -> void:

@@ -18,6 +18,13 @@ const TILE_TEXTURE_PATHS: Dictionary = {
 	Constants.TileType.PINK_CHERRY: "res://assets/sprites/tiles/tile_pink_cherry.png"
 }
 
+const DECORATION_TEXTURE_PATHS: Dictionary = {
+	"bench": "res://assets/sprites/decorations/decor_bench.png",
+	"lantern": "res://assets/sprites/decorations/decor_lantern.png",
+	"fountain": "res://assets/sprites/decorations/decor_fountain.png",
+	"hedge": "res://assets/sprites/decorations/decor_hedge.png"
+}
+
 
 static func get_game_background(level_id: int) -> Texture2D:
 	return _load_texture(GAME_BACKGROUND_EARLY if level_id <= 3 else GAME_BACKGROUND_SOFT)
@@ -33,6 +40,11 @@ static func get_garden_background(restoration_stage: int) -> Texture2D:
 
 static func get_tile_texture(tile_type: int) -> Texture2D:
 	var path = str(TILE_TEXTURE_PATHS.get(tile_type, ""))
+	return _load_texture(path)
+
+
+static func get_decoration_texture(decoration_id: String) -> Texture2D:
+	var path = str(DECORATION_TEXTURE_PATHS.get(decoration_id, ""))
 	return _load_texture(path)
 
 

@@ -5,13 +5,18 @@
     "type": "collect",
     "requirements": [
       {
-        "tile_type": 1,
-        "count": 17
+        "tile_type": 2,
+        "count": 16
       }
     ],
+    "garden_layer": {
+      "type": "fallen_leaves",
+      "required": 3,
+      "cells": [[2, 1], [2, 3], [2, 5]]
+    },
     "theme": {
-      "objective_name": "唤醒露台花藤",
-      "objective_detail": "让清风先吹开露台边的缠绕花藤。",
+      "objective_name": "唤醒露台勿忘我",
+      "objective_detail": "收集蓝勿忘我，让清风吹开露台边的花藤。",
       "focus_name": "露台花藤",
       "breeze_label": "清风唤醒",
       "breeze_bonus": 2,

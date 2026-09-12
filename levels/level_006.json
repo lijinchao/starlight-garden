@@ -5,10 +5,18 @@
     "type": "collect",
     "requirements": [
       {
-        "tile_type": 1,
-        "count": 18
+        "tile_type": 4,
+        "count": 16
       }
-    ]
+    ],
+    "theme": {
+      "objective_name": "照暖向日葵门廊",
+      "objective_detail": "收集黄向日葵，让门廊接住清晨的光。",
+      "focus_name": "向日葵门廊",
+      "breeze_label": "清风唤醒",
+      "breeze_bonus": 2,
+      "result_name": "门廊被向日葵照暖了"
+    }
   },
   "available_types": [
     1,

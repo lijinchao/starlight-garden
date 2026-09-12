@@ -10,6 +10,7 @@ signal open_settings()
 signal open_garden()
 signal open_flower_journal()
 signal open_daily_gift()
+signal playtest_event(event_name: String, payload: Dictionary)
 
 # ==================== 节点引用 ====================
 var title_label: Label
@@ -18,6 +19,8 @@ var garden_btn: Button
 var flower_journal_btn: Button
 var daily_gift_btn: Button
 var settings_btn: Button
+var main_container: VBoxContainer
+var recommendation_label: Label
 var level_label: Label
 var restoration_label: Label
 var restoration_hint_label: Label
@@ -31,6 +34,7 @@ var stage_strip: HBoxContainer
 var decoration_petals: Array[Label] = []
 var decoration_tweens: Array[Tween] = []
 var active_tweens: Array[Tween] = []
+var current_meta_prompt: Dictionary = {}
 
 const META_UNLOCK_RUNS: int = 3
 
@@ -75,17 +79,18 @@ func _create_ui() -> void:
 	_create_decorations()
 	
 	# 主容器 - 使用PRESET_CENTER_WIDE并设置偏移
-	var main_container = VBoxContainer.new()
+	main_container = VBoxContainer.new()
 	main_container.set_anchors_preset(Control.PRESET_CENTER)
-	main_container.custom_minimum_size = Vector2(350, 500)
-	main_container.add_theme_constant_override("separation", 30)
+	main_container.position = Vector2(-210, -600)
+	main_container.custom_minimum_size = Vector2(420, 1200)
+	main_container.add_theme_constant_override("separation", 14)
 	add_child(main_container)
 	
 	# 标题
 	title_label = Label.new()
 	title_label.text = "🌸 星光花园 🌸"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 48)
+	title_label.add_theme_font_size_override("font_size", 42)
 	main_container.add_child(title_label)
 	
 	# 副标题
@@ -98,8 +103,17 @@ func _create_ui() -> void:
 	
 	# 间距
 	var spacer1 = Control.new()
-	spacer1.custom_minimum_size = Vector2(0, 40)
+	spacer1.custom_minimum_size = Vector2(0, 12)
 	main_container.add_child(spacer1)
+
+	recommendation_label = Label.new()
+	recommendation_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	recommendation_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	recommendation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	recommendation_label.custom_minimum_size = Vector2(400, 62)
+	recommendation_label.add_theme_font_size_override("font_size", 18)
+	recommendation_label.add_theme_color_override("font_color", Color(0.18, 0.22, 0.2))
+	main_container.add_child(recommendation_label)
 	
 	# 开始游戏按钮
 	start_btn = Button.new()
@@ -179,7 +193,7 @@ func _create_ui() -> void:
 	
 	# 间距
 	var spacer2 = Control.new()
-	spacer2.custom_minimum_size = Vector2(0, 30)
+	spacer2.custom_minimum_size = Vector2(0, 10)
 	main_container.add_child(spacer2)
 	
 	# 设置按钮
@@ -223,6 +237,7 @@ func _update_display() -> void:
 	flower_journal_btn.visible = is_flower_journal_unlocked()
 	daily_gift_btn.visible = is_daily_gift_unlocked()
 	_update_restoration_display()
+	_update_home_recommendation(player_data)
 
 
 func _update_restoration_display() -> void:
@@ -237,12 +252,100 @@ func _update_restoration_display() -> void:
 	restoration_goal_label.text = str(restoration.get("next_goal", ""))
 	start_btn.text = "✨ 开始修复" if total_runs < META_UNLOCK_RUNS else "✨ 开始游戏"
 	garden_btn.text = "🌿 看看花园" if total_runs < META_UNLOCK_RUNS else "🌿 我的花园"
+	var show_early_restoration = total_runs < META_UNLOCK_RUNS
+	restoration_hint_label.visible = show_early_restoration
+	restoration_preview_label.visible = show_early_restoration
+	restoration_goal_label.visible = show_early_restoration
+	stage_strip.visible = show_early_restoration
 	if background_rect:
 		background_rect.texture = VisualAssetCatalogScript.get_garden_background(stage)
 	if background_tint:
 		background_tint.color = Color(_get_stage_color(stage), 0.34)
 	_render_restoration_scene(stage)
 	_render_stage_strip(stage)
+
+
+func _update_home_recommendation(player_data: Dictionary) -> void:
+	var recommendation = get_home_recommendation(player_data)
+	recommendation_label.text = "下一步：%s\n%s" % [
+		recommendation.get("title", "继续照料花园"),
+		recommendation.get("detail", "完成一局，让花园继续变化。")
+	]
+	start_btn.self_modulate = Color.WHITE
+	garden_btn.self_modulate = Color.WHITE
+	flower_journal_btn.self_modulate = Color.WHITE
+	daily_gift_btn.self_modulate = Color.WHITE
+
+	var level_id = int(player_data.get("level", 1))
+	var early_restoration = int(player_data.get("total_runs", 0)) < META_UNLOCK_RUNS
+	start_btn.text = "✨ 开始修复" if early_restoration else "第 %d 关" % level_id
+	garden_btn.text = "🌿 看看花园" if early_restoration else "🌿 我的花园"
+	flower_journal_btn.text = "📖 花语日记"
+	daily_gift_btn.text = "🌤 今日花礼"
+	match str(recommendation.get("action", "start")):
+		"garden":
+			garden_btn.text = "推荐 · 去花园"
+			garden_btn.self_modulate = Color(1.0, 0.94, 0.68, 1.0)
+		"flower_journal":
+			flower_journal_btn.text = "推荐 · 花语日记"
+			flower_journal_btn.self_modulate = Color(1.0, 0.94, 0.68, 1.0)
+		"daily_gift":
+			daily_gift_btn.text = "推荐 · 今日花礼"
+			daily_gift_btn.self_modulate = Color(1.0, 0.94, 0.68, 1.0)
+		_:
+			if not early_restoration:
+				start_btn.text = "推荐 · 第 %d 关" % level_id
+			start_btn.self_modulate = Color(1.0, 0.94, 0.68, 1.0)
+
+
+func get_home_recommendation(player_data: Dictionary = {}) -> Dictionary:
+	var effective_player_data = player_data if not player_data.is_empty() else SaveManager.get_player_data()
+	var total_runs = int(effective_player_data.get("total_runs", 0))
+	var level_id = int(effective_player_data.get("level", 1))
+	var meta_prompt = MetaUnlockService.get_active_prompt()
+	if not meta_prompt.is_empty():
+		return meta_prompt
+	if total_runs < META_UNLOCK_RUNS:
+		return {
+			"action": "start",
+			"title": "继续修复花园",
+			"detail": "完成第 %d 关，看看下一个角落的变化。" % level_id
+		}
+
+	var garden_data = SaveManager.get_garden_data()
+	var slots = garden_data.get("slots", [])
+	var inventory = garden_data.get("inventory", [])
+	if not inventory.is_empty() and _has_empty_garden_slot(slots):
+		var first_seed = inventory[0]
+		var seed_name = Constants.TILE_NAMES.get(int(first_seed.get("type", Constants.TileType.RED_ROSE)), "花")
+		return {
+			"action": "garden",
+			"title": "种下%s花种" % seed_name,
+			"detail": "背包已有花种，先让它在花园里生长。"
+		}
+
+	var config = _get_level_config(level_id)
+	var theme = config.get("target", {}).get("theme", {})
+	var reward_type = int(config.get("rewards", {}).get("seed_type", Constants.TileType.RED_ROSE))
+	return {
+		"action": "start",
+		"title": str(theme.get("objective_name", "继续第 %d 关" % level_id)),
+		"detail": "完成后带回%s花种。" % Constants.TILE_NAMES.get(reward_type, "花")
+	}
+
+
+func _has_empty_garden_slot(slots: Array) -> bool:
+	for slot_index in range(4):
+		if slot_index >= slots.size() or slots[slot_index].is_empty():
+			return true
+	return false
+
+
+func _get_level_config(level_id: int) -> Dictionary:
+	var level_reader = LevelSystem.new()
+	var config = level_reader.get_level_config(level_id)
+	level_reader.free()
+	return config
 
 
 func _render_restoration_scene(current_stage: int) -> void:
@@ -343,20 +446,24 @@ func _get_stage_color(stage: int) -> Color:
 func _on_start_pressed() -> void:
 	# 播放点击音效
 	AudioManager.play_ui_click()
+	_emit_recommendation_selected("start")
 	
 	# 发射开始游戏信号
 	start_game.emit()
 
 func _on_garden_pressed() -> void:
 	AudioManager.play_ui_click()
+	_emit_recommendation_selected("garden")
 	open_garden.emit()
 
 func _on_flower_journal_pressed() -> void:
 	AudioManager.play_ui_click()
+	_emit_recommendation_selected("flower_journal")
 	open_flower_journal.emit()
 
 func _on_daily_gift_pressed() -> void:
 	AudioManager.play_ui_click()
+	_emit_recommendation_selected("daily_gift")
 	open_daily_gift.emit()
 
 func _on_settings_pressed() -> void:
@@ -366,7 +473,19 @@ func _on_settings_pressed() -> void:
 # ==================== 公开方法 ====================
 func show_menu() -> void:
 	visible = true
+	current_meta_prompt = MetaUnlockService.begin_home_visit()
 	_update_display()
+	if current_meta_prompt.get("newly_presented", false):
+		playtest_event.emit("meta_feature_unlocked", {
+			"feature_id": str(current_meta_prompt.get("feature_id", "")),
+			"pending_count": SaveManager.get_meta_progression_data().get("pending", []).size()
+		})
+	var recommendation = get_home_recommendation()
+	playtest_event.emit("home_recommendation_shown", {
+		"action": str(recommendation.get("action", "start")),
+		"feature_id": str(recommendation.get("feature_id", "")),
+		"title": str(recommendation.get("title", ""))
+	})
 	
 	# 显示动画
 	modulate.a = 0
@@ -390,18 +509,19 @@ func _remove_tween(tween: Tween) -> void:
 
 
 func is_flower_journal_unlocked() -> bool:
-	if int(SaveManager.get_player_data().get("total_runs", 0)) < META_UNLOCK_RUNS:
-		return false
-	var flower_language = SaveManager.get_flower_language_data()
-	if not flower_language.get("unlocked", []).is_empty():
-		return true
-
-	var fragments = flower_language.get("fragments", {})
-	for key in fragments.keys():
-		if int(fragments[key]) > 0:
-			return true
-	return false
+	return MetaUnlockService.is_unlocked(MetaUnlockService.FEATURE_FLOWER_JOURNAL)
 
 
 func is_daily_gift_unlocked() -> bool:
-	return int(SaveManager.get_player_data().get("total_runs", 0)) >= META_UNLOCK_RUNS
+	return MetaUnlockService.is_unlocked(MetaUnlockService.FEATURE_DAILY_GIFT)
+
+
+func _emit_recommendation_selected(action: String) -> void:
+	var recommendation = get_home_recommendation()
+	if str(recommendation.get("action", "")) != action:
+		return
+	playtest_event.emit("home_recommendation_completed", {
+		"action": action,
+		"feature_id": str(recommendation.get("feature_id", "")),
+		"stage": "selected"
+	})

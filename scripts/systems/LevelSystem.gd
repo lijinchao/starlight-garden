@@ -20,6 +20,10 @@ var is_level_active: bool = false
 var breeze_awakenings: int = 0
 var breeze_bonus_progress: int = 0
 var last_awakened_focus: String = ""
+var garden_layers_cleared: int = 0
+var garden_layers_total: int = 0
+var dew_buds_triggered: int = 0
+var max_dew_chain: int = 0
 
 # ==================== 关卡配置 ====================
 # 获取关卡配置（程序化生成或从文件加载）
@@ -139,7 +143,9 @@ func _generate_rewards(level_id: int, available_types: Array) -> Dictionary:
 
 func _normalize_level_config(level_config: Dictionary) -> Dictionary:
 	var normalized = level_config.duplicate(true)
-	var available_types = normalized.get("available_types", _get_default_types())
+	var available_types: Array = []
+	for tile_type in normalized.get("available_types", _get_default_types()):
+		available_types.append(int(tile_type))
 	normalized["available_types"] = available_types
 	normalized["target"] = _normalize_target(normalized.get("target", {}))
 	normalized["rewards"] = _normalize_rewards(
@@ -175,6 +181,27 @@ func _normalize_target(target: Dictionary) -> Dictionary:
 		theme["result_name"] = "花圃亮了一点"
 
 	normalized["theme"] = theme
+	if normalized.get("garden_layer", {}) is Dictionary:
+		var layer = normalized.get("garden_layer", {}).duplicate(true)
+		var cells: Array = []
+		for raw_cell in layer.get("cells", []):
+			if raw_cell is Array and raw_cell.size() >= 2:
+				cells.append([int(raw_cell[0]), int(raw_cell[1])])
+		layer["cells"] = cells
+		layer["required"] = clampi(int(layer.get("required", cells.size())), 0, cells.size())
+		var valid_cells: Dictionary = {}
+		for cell in cells:
+			valid_cells[Vector2i(int(cell[0]), int(cell[1]))] = true
+		var dew_buds: Array = []
+		var seen_buds: Dictionary = {}
+		for raw_bud in layer.get("dew_buds", []):
+			if raw_bud is Array and raw_bud.size() >= 2:
+				var bud_pos = Vector2i(int(raw_bud[0]), int(raw_bud[1]))
+				if valid_cells.has(bud_pos) and not seen_buds.has(bud_pos):
+					seen_buds[bud_pos] = true
+					dew_buds.append([bud_pos.x, bud_pos.y])
+		layer["dew_buds"] = dew_buds
+		normalized["garden_layer"] = layer
 	return normalized
 
 
@@ -206,8 +233,12 @@ func _get_default_types() -> Array:
 # ==================== 关卡流程 ====================
 # 开始关卡
 func start_level(level_id: int, bonus_moves: int = 0) -> void:
-	current_level_id = level_id
-	level_config = get_level_config(level_id)
+	start_level_config(get_level_config(level_id), bonus_moves)
+
+
+func start_level_config(config: Dictionary, bonus_moves: int = 0) -> void:
+	level_config = _normalize_level_config(config)
+	current_level_id = int(level_config.get("level_id", 1))
 	moves_left = level_config.get("moves", Constants.MAX_MOVES_DEFAULT) + max(0, bonus_moves)
 	collected_tiles.clear()
 	current_score = 0
@@ -215,6 +246,11 @@ func start_level(level_id: int, bonus_moves: int = 0) -> void:
 	breeze_awakenings = 0
 	breeze_bonus_progress = 0
 	last_awakened_focus = ""
+	garden_layers_cleared = 0
+	dew_buds_triggered = 0
+	max_dew_chain = 0
+	var layer_config = level_config.get("target", {}).get("garden_layer", {})
+	garden_layers_total = int(layer_config.get("required", layer_config.get("cells", []).size()))
 	
 	level_loaded.emit(level_config)
 
@@ -243,6 +279,22 @@ func collect_tiles(tile_type: int, count: int) -> void:
 	target_updated.emit(collected_tiles)
 
 
+func clear_garden_layers(count: int) -> void:
+	if not is_level_active or count <= 0:
+		return
+	garden_layers_cleared = mini(garden_layers_total, garden_layers_cleared + count)
+	target_updated.emit(collected_tiles)
+
+
+func record_dew_bud_bursts(bursts: Array) -> void:
+	if not is_level_active or bursts.is_empty():
+		return
+	dew_buds_triggered += bursts.size()
+	for burst in bursts:
+		max_dew_chain = maxi(max_dew_chain, int(burst.get("chain_index", 1)))
+	target_updated.emit(collected_tiles)
+
+
 # 一次交换的全部匹配、连锁和清风结算后再统一裁决胜负。
 func finish_turn() -> void:
 	if not is_level_active:
@@ -267,6 +319,8 @@ func _check_win_condition() -> bool:
 		
 		if collected < required_count:
 			return false
+	if garden_layers_cleared < garden_layers_total:
+		return false
 	
 	return true
 
@@ -309,6 +363,9 @@ func continue_level(extra_moves: int = 5) -> bool:
 
 # 重新开始关卡
 func restart_level() -> void:
+	if bool(level_config.get("is_daily_challenge", false)):
+		start_level_config(level_config)
+		return
 	start_level(current_level_id)
 
 # 获取目标进度文本
@@ -326,21 +383,36 @@ func get_target_progress_text() -> String:
 			texts.append("%s\n通关：%s %d/%d" % [theme.get("objective_name", tile_name), tile_name, collected, required])
 		else:
 			texts.append("通关：%s %d/%d" % [tile_name, collected, required])
+	if garden_layers_total > 0:
+		texts.append("扫开落叶 %d/%d" % [garden_layers_cleared, garden_layers_total])
 	
 	return "\n".join(texts)
 
 
 func get_target_intro_text() -> String:
-	var detail = str(get_theme_target_data().get("objective_detail", "让这里先亮起来。"))
 	var requirements = level_config.get("target", {}).get("requirements", [])
 	if requirements.is_empty():
-		return detail
+		return str(get_theme_target_data().get("objective_detail", "让这里先亮起来。"))
 	var requirement = requirements[0]
 	var tile_type = int(requirement.get("tile_type", Constants.TileType.RED_ROSE))
-	return "%s 收集满 %d 朵%s即可通过。" % [
+	var reward_type = int(level_config.get("rewards", {}).get("seed_type", tile_type))
+	if garden_layers_total > 0:
+		var garden_layer = level_config.get("target", {}).get("garden_layer", {})
+		var dew_hint = ""
+		if garden_layer is Dictionary and not garden_layer.get("dew_buds", []).is_empty():
+			dew_hint = " 晨露花苞绽放后会扫开十字落叶。"
+		return "在落叶旁消除；四连会沿横/竖方向吹过整条路径。%s\n扫净落叶并收集满 %d 朵%s，带回%s花种。" % [
+			dew_hint,
+			int(requirement.get("count", 0)),
+			Constants.TILE_NAMES.get(tile_type, "花"),
+			Constants.TILE_NAMES.get(reward_type, "花")
+		]
+	var detail = str(get_theme_target_data().get("objective_detail", "让这里先亮起来。"))
+	return "%s 收集满 %d 朵%s即可通过。\n完成后带回%s花种。" % [
 		detail,
 		int(requirement.get("count", 0)),
-		Constants.TILE_NAMES.get(tile_type, "花")
+		Constants.TILE_NAMES.get(tile_type, "花"),
+		Constants.TILE_NAMES.get(reward_type, "花")
 	]
 
 
@@ -362,6 +434,10 @@ func get_theme_progress_snapshot() -> Dictionary:
 		"breeze_bonus": int(theme.get("breeze_bonus", 0)),
 		"awakenings": breeze_awakenings,
 		"bonus_progress": breeze_bonus_progress,
+		"garden_layers_cleared": garden_layers_cleared,
+		"garden_layers_total": garden_layers_total,
+		"dew_buds_triggered": dew_buds_triggered,
+		"max_dew_chain": max_dew_chain,
 		"last_awakened_focus": last_awakened_focus
 	}
 

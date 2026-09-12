@@ -3,12 +3,16 @@ class_name DailyGiftUI
 extends Control
 
 signal back_pressed()
+signal action_requested(action: String, level_id: int)
 
 var back_btn: Button
 var date_label: Label
 var task_list: VBoxContainer
 var gift_label: Label
 var claim_btn: Button
+var challenge_label: Label
+var challenge_btn: Button
+var next_action: Dictionary = {}
 
 
 func _ready() -> void:
@@ -38,6 +42,7 @@ func _create_ui() -> void:
 	title.text = "🌤 今日花礼"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", Color(0.25, 0.20, 0.14))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_bar.add_child(title)
 
@@ -52,6 +57,18 @@ func _create_ui() -> void:
 	content.add_theme_constant_override("separation", 18)
 	add_child(content)
 
+	challenge_label = Label.new()
+	challenge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	challenge_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	challenge_label.add_theme_font_size_override("font_size", 18)
+	challenge_label.add_theme_color_override("font_color", Color(0.18, 0.38, 0.3))
+	content.add_child(challenge_label)
+
+	challenge_btn = Button.new()
+	challenge_btn.custom_minimum_size = Vector2(300, 56)
+	challenge_btn.add_theme_font_size_override("font_size", 21)
+	content.add_child(challenge_btn)
+
 	date_label = Label.new()
 	date_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	date_label.add_theme_font_size_override("font_size", 20)
@@ -62,6 +79,7 @@ func _create_ui() -> void:
 	subtitle.text = "完成今日小目标，领取一份温柔奖励。"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 18)
+	subtitle.add_theme_color_override("font_color", Color(0.42, 0.34, 0.24))
 	content.add_child(subtitle)
 
 	task_list = VBoxContainer.new()
@@ -71,6 +89,7 @@ func _create_ui() -> void:
 	gift_label = Label.new()
 	gift_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	gift_label.add_theme_font_size_override("font_size", 18)
+	gift_label.add_theme_color_override("font_color", Color(0.38, 0.30, 0.20))
 	content.add_child(gift_label)
 
 	claim_btn = Button.new()
@@ -82,11 +101,21 @@ func _create_ui() -> void:
 func _connect_signals() -> void:
 	back_btn.pressed.connect(_on_back_pressed)
 	claim_btn.pressed.connect(_on_claim_pressed)
+	challenge_btn.pressed.connect(_on_challenge_pressed)
 
 
 func _update_display() -> void:
 	var data = DailyService.get_display_data()
 	date_label.text = "今日：%s" % data.get("date", "")
+	var challenge = DailyChallengeService.get_today_challenge().get("challenge", {})
+	var progress = DailyChallengeService.get_today_progress()
+	var direction = "横向" if str(challenge.get("preferred_direction", "horizontal")) == "horizontal" else "纵向"
+	challenge_label.text = "今日风庭 · %s · 推荐%s四连\n%s" % [
+		str(challenge.get("layout_name", "晨露花庭")),
+		direction,
+		"最佳连锁 x%d · 已尝试 %d 次" % [int(progress.get("best_chain", 0)), int(progress.get("attempts", 0))]
+	]
+	challenge_btn.text = "再试一次今日风庭" if bool(progress.get("completed", false)) else "开始今日风庭"
 
 	for child in task_list.get_children():
 		child.queue_free()
@@ -108,8 +137,28 @@ func _update_display() -> void:
 		claim_btn.text = "领取今日花礼"
 		claim_btn.disabled = false
 	else:
-		claim_btn.text = "完成今日目标后领取"
-		claim_btn.disabled = true
+		next_action = _get_next_action(data.get("tasks", []))
+		claim_btn.text = str(next_action.get("label", "继续完成今日目标"))
+		claim_btn.disabled = false
+
+
+func _get_next_action(tasks: Array) -> Dictionary:
+	for task in tasks:
+		if task.get("completed", false):
+			continue
+		var task_id = str(task.get("id", ""))
+		if task_id == DailyService.TASK_HARVEST_FLOWER:
+			var garden = SaveManager.get_garden_data()
+			var has_planted_flower = false
+			for slot in garden.get("slots", []):
+				if slot is Dictionary and not slot.is_empty():
+					has_planted_flower = true
+					break
+			if has_planted_flower or not garden.get("inventory", []).is_empty():
+				return {"action": "garden", "label": "去花园完成一次收获"}
+		var level_id = int(SaveManager.get_player_data().get("level", 1))
+		return {"action": "start", "level_id": level_id, "label": "去完成第 %d 关" % level_id}
+	return {"action": "start", "level_id": int(SaveManager.get_player_data().get("level", 1)), "label": "继续完成今日目标"}
 
 
 func _create_task_row(task: Dictionary) -> Control:
@@ -145,6 +194,12 @@ func _on_back_pressed() -> void:
 
 func _on_claim_pressed() -> void:
 	AudioManager.play_ui_click()
+	if not DailyService.can_claim_gift():
+		action_requested.emit(
+			str(next_action.get("action", "start")),
+			int(next_action.get("level_id", SaveManager.get_player_data().get("level", 1)))
+		)
+		return
 	var result = DailyService.claim_gift()
 	if result.get("success", false):
 		var seed_name = Constants.TILE_NAMES.get(int(result.get("seed_type", Constants.TileType.RED_ROSE)), "花种")
@@ -156,6 +211,11 @@ func _on_claim_pressed() -> void:
 	else:
 		PopupManager.show_toast("今日花礼暂不可领取")
 	_update_display()
+
+
+func _on_challenge_pressed() -> void:
+	AudioManager.play_ui_click()
+	action_requested.emit("daily_challenge", 0)
 
 
 func show_daily_gift() -> void:

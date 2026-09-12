@@ -3,22 +3,25 @@ class_name GardenUI
 extends Control
 
 const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
+const GardenPlantVisualScript = preload("res://scripts/ui/GardenPlantVisual.gd")
 
 # ==================== 信号 ====================
 signal back_pressed()
 signal flower_planted(slot: int, flower_type: int)
 signal flower_synthesized(flower_type: int, from_level: int, to_level: int)
+signal playtest_event(event_name: String, payload: Dictionary)
 
 # ==================== 节点引用 ====================
 var back_btn: Button
-var garden_grid: GridContainer
+var garden_grid: Control
 var flower_slots: Array = []
 var selected_slot: int = -1
 var inventory_container: VBoxContainer
 var star_count_label: Label
 var inventory_list: VBoxContainer
 var decoration_container: VBoxContainer
-var decoration_list: VBoxContainer
+var decoration_backdrop: ColorRect
+var decoration_list: HBoxContainer
 var atmosphere_label: Label
 var restoration_label: Label
 var restoration_hint_label: Label
@@ -28,6 +31,11 @@ var restoration_focus_label: Label
 var restoration_badges: HBoxContainer
 var background_rect: TextureRect
 var background_tint: ColorRect
+var inventory_backdrop: ColorRect
+var decoration_visual_layer: Control
+var decoration_visuals: Dictionary = {}
+var top_bar_panel: PanelContainer
+var restoration_summary_panel: PanelContainer
 var arrival_overlay: PanelContainer
 var arrival_title_label: Label
 var arrival_detail_label: Label
@@ -36,8 +44,41 @@ var last_arrival_message: String = ""
 var last_arrival_detail: String = ""
 var highlighted_restoration_slot: int = -1
 var active_tweens: Array[Tween] = []
+var seed_picker_overlay: Control
+var seed_picker_list: VBoxContainer
+var pending_plant_slot: int = -1
+var last_selected_seed: Dictionary = {}
+var previewed_decoration_id: String = ""
+var last_synthesis_preview: Dictionary = {}
+var decoration_drop_zone: PanelContainer
+var decoration_drop_label: Label
+var decoration_drag_ghost: TextureRect
+var dragging_decoration_id: String = ""
+var decoration_choice_buttons: Dictionary = {}
 
-const META_UNLOCK_RUNS: int = 3
+const DECORATION_LAYOUT: Dictionary = {
+	"bench": {"position": Vector2(150, 450), "size": Vector2(300, 250)},
+	"fountain": {"position": Vector2(190, 430), "size": Vector2(250, 250)},
+	"lantern": {"position": Vector2(600, 250), "size": Vector2(120, 200)},
+	"hedge": {"position": Vector2(430, 520), "size": Vector2(240, 150)}
+}
+
+const FLOWER_HOTSPOT_LAYOUT: Array[Dictionary] = [
+	{"position": Vector2(36, 555), "size": Vector2(190, 190)},
+	{"position": Vector2(214, 650), "size": Vector2(132, 150)},
+	{"position": Vector2(430, 480), "size": Vector2(210, 190)},
+	{"position": Vector2(630, 570), "size": Vector2(112, 155)}
+]
+
+const PRIMARY_DECORATION_CHOICES: Array[String] = [
+	"bench",
+	"fountain"
+]
+
+const DECORATION_DROP_RECT := Rect2(145, 430, 330, 280)
+
+const EMPTY_SLOT_STYLE := Color(0.95, 0.98, 0.9, 0.16)
+const ACTIVE_SLOT_STYLE := Color(1.0, 0.94, 0.7, 0.34)
 
 # ==================== 变量 ====================
 var garden_data: Dictionary = {
@@ -74,123 +115,180 @@ func _create_ui() -> void:
 
 	background_tint = ColorRect.new()
 	background_tint.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background_tint.color = Color(0.92, 0.96, 0.92, 0.28)
+	background_tint.color = Color(0.98, 0.96, 0.92, 0.08)
 	background_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background_tint)
+
+	decoration_visual_layer = Control.new()
+	decoration_visual_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	decoration_visual_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(decoration_visual_layer)
+	_create_decoration_visuals()
 	
-	# 顶部栏
+	# 顶部导航使用独立底板，避免按钮和背景插画混在一起。
+	top_bar_panel = PanelContainer.new()
+	top_bar_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top_bar_panel.offset_left = 16
+	top_bar_panel.offset_top = 16
+	top_bar_panel.offset_right = -16
+	top_bar_panel.offset_bottom = 76
+	top_bar_panel.add_theme_stylebox_override("panel", _create_surface_style(Color(0.98, 0.99, 0.97, 0.94)))
+	top_bar_panel.z_index = 10
+	add_child(top_bar_panel)
+
 	var top_bar = HBoxContainer.new()
-	top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top_bar.position = Vector2(20, 20)
-	add_child(top_bar)
+	top_bar.add_theme_constant_override("separation", 12)
+	top_bar_panel.add_child(top_bar)
 	
 	# 返回按钮
 	back_btn = Button.new()
-	back_btn.text = "← 返回"
-	back_btn.custom_minimum_size = Vector2(120, 50)
-	back_btn.add_theme_font_size_override("font_size", 20)
+	back_btn.text = "←"
+	back_btn.tooltip_text = "返回首页"
+	back_btn.custom_minimum_size = Vector2(56, 44)
+	back_btn.add_theme_font_size_override("font_size", 26)
 	top_bar.add_child(back_btn)
 	
 	# 标题
 	var title = Label.new()
-	title.text = "🌿 我的花园"
+	title.text = "我的花园"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 32)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(0.16, 0.22, 0.18))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_bar.add_child(title)
 	
 	# 星光数量
 	var star_container = HBoxContainer.new()
+	star_container.custom_minimum_size = Vector2(88, 44)
+	star_container.alignment = BoxContainer.ALIGNMENT_END
 	top_bar.add_child(star_container)
 	
 	var star_icon = Label.new()
 	star_icon.text = "✨"
 	star_icon.add_theme_font_size_override("font_size", 28)
+	star_icon.add_theme_color_override("font_color", Color(0.2, 0.24, 0.18))
 	star_container.add_child(star_icon)
 	
 	star_count_label = Label.new()
 	star_count_label.text = "0"
 	star_count_label.add_theme_font_size_override("font_size", 24)
+	star_count_label.add_theme_color_override("font_color", Color(0.16, 0.22, 0.18))
 	star_container.add_child(star_count_label)
 	
-	# 花园网格
-	garden_grid = GridContainer.new()
-	garden_grid.columns = 2
-	garden_grid.set_anchors_preset(Control.PRESET_CENTER)
-	garden_grid.position = Vector2(-200, -200)
-	garden_grid.add_theme_constant_override("h_separation", 20)
-	garden_grid.add_theme_constant_override("v_separation", 20)
-	add_child(garden_grid)
-	
-	# 创建花盆位
-	for i in range(4):
-		var slot = _create_flower_slot(i)
-		garden_grid.add_child(slot)
-		flower_slots.append(slot)
+	# 恢复信息压缩成一条场景目标，不覆盖主要花园空间。
+	restoration_summary_panel = PanelContainer.new()
+	restoration_summary_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	restoration_summary_panel.offset_left = 24
+	restoration_summary_panel.offset_top = 88
+	restoration_summary_panel.offset_right = -24
+	restoration_summary_panel.offset_bottom = 158
+	restoration_summary_panel.add_theme_stylebox_override("panel", _create_surface_style(Color(0.1, 0.12, 0.08, 0.58)))
+	restoration_summary_panel.z_index = 10
+	add_child(restoration_summary_panel)
 
-	# 装饰容器
-	decoration_container = VBoxContainer.new()
-	decoration_container.position = Vector2(470, 150)
-	decoration_container.custom_minimum_size = Vector2(250, 360)
-	decoration_container.add_theme_constant_override("separation", 10)
-	add_child(decoration_container)
-
-	var decoration_title = Label.new()
-	decoration_title.text = "🏡 花园恢复"
-	decoration_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	decoration_title.add_theme_font_size_override("font_size", 22)
-	decoration_container.add_child(decoration_title)
+	var restoration_summary = VBoxContainer.new()
+	restoration_summary.alignment = BoxContainer.ALIGNMENT_CENTER
+	restoration_summary.add_theme_constant_override("separation", 4)
+	restoration_summary_panel.add_child(restoration_summary)
 
 	restoration_label = Label.new()
 	restoration_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	restoration_label.add_theme_font_size_override("font_size", 20)
-	decoration_container.add_child(restoration_label)
-
-	restoration_hint_label = Label.new()
-	restoration_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	restoration_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	restoration_hint_label.custom_minimum_size = Vector2(220, 54)
-	restoration_hint_label.add_theme_font_size_override("font_size", 16)
-	decoration_container.add_child(restoration_hint_label)
-
-	restoration_preview_label = Label.new()
-	restoration_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	restoration_preview_label.add_theme_font_size_override("font_size", 30)
-	decoration_container.add_child(restoration_preview_label)
+	restoration_label.add_theme_font_size_override("font_size", 18)
+	restoration_label.add_theme_color_override("font_color", Color(1.0, 0.98, 0.9))
+	restoration_summary.add_child(restoration_label)
 
 	restoration_focus_label = Label.new()
 	restoration_focus_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	restoration_focus_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	restoration_focus_label.custom_minimum_size = Vector2(220, 44)
-	restoration_focus_label.add_theme_font_size_override("font_size", 16)
-	decoration_container.add_child(restoration_focus_label)
+	restoration_focus_label.custom_minimum_size = Vector2(620, 24)
+	restoration_focus_label.add_theme_font_size_override("font_size", 15)
+	restoration_focus_label.add_theme_color_override("font_color", Color(0.94, 0.96, 0.86))
+	restoration_summary.add_child(restoration_focus_label)
 
 	restoration_goal_label = Label.new()
 	restoration_goal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	restoration_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	restoration_goal_label.custom_minimum_size = Vector2(220, 48)
-	restoration_goal_label.add_theme_font_size_override("font_size", 15)
-	decoration_container.add_child(restoration_goal_label)
+	restoration_goal_label.custom_minimum_size = Vector2(620, 26)
+	restoration_goal_label.add_theme_font_size_override("font_size", 14)
+	restoration_goal_label.visible = false
+	restoration_summary.add_child(restoration_goal_label)
 
 	restoration_badges = HBoxContainer.new()
+	restoration_badges.visible = false
 	restoration_badges.alignment = BoxContainer.ALIGNMENT_CENTER
 	restoration_badges.add_theme_constant_override("separation", 10)
-	decoration_container.add_child(restoration_badges)
+	restoration_summary.add_child(restoration_badges)
+
+	# 保留数据节点供状态更新使用，但不再把长说明重复展示在首屏。
+	restoration_hint_label = Label.new()
+	restoration_hint_label.visible = false
+	restoration_preview_label = Label.new()
+	restoration_preview_label.visible = false
+
+	# 花盆与花圃直接映射到背景中的实际位置。
+	garden_grid = Control.new()
+	garden_grid.name = "GardenHotspots"
+	garden_grid.position = Vector2(0, 160)
+	garden_grid.size = Vector2(750, 760)
+	add_child(garden_grid)
+
+	# 创建花盆位
+	for i in range(4):
+		var slot = _create_flower_slot(i)
+		garden_grid.add_child(slot)
+		var layout: Dictionary = FLOWER_HOTSPOT_LAYOUT[i]
+		slot.position = layout.get("position", Vector2.ZERO)
+		slot.size = layout.get("size", Vector2(150, 150))
+		flower_slots.append(slot)
+
+	# 装饰从商品列表改为底部二选一拖放托盘。
+	decoration_backdrop = ColorRect.new()
+	decoration_backdrop.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	decoration_backdrop.offset_top = -360
+	decoration_backdrop.offset_bottom = 0
+	decoration_backdrop.color = Color(0.06, 0.07, 0.05, 0.72)
+	decoration_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decoration_backdrop.z_index = 20
+	add_child(decoration_backdrop)
+
+	decoration_container = VBoxContainer.new()
+	decoration_container.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	decoration_container.offset_left = 24
+	decoration_container.offset_top = -344
+	decoration_container.offset_right = -24
+	decoration_container.offset_bottom = -18
+	decoration_container.add_theme_constant_override("separation", 8)
+	decoration_container.z_index = 21
+	add_child(decoration_container)
+
+	var decoration_title = Label.new()
+	decoration_title.text = "拖到庭院中，选择会永久保留"
+	decoration_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	decoration_title.add_theme_font_size_override("font_size", 19)
+	decoration_title.add_theme_color_override("font_color", Color(1.0, 0.97, 0.88))
+	decoration_container.add_child(decoration_title)
 
 	atmosphere_label = Label.new()
-	atmosphere_label.text = "氛围值 0"
+	atmosphere_label.text = "完成第一次收获后，可以布置一处休憩角"
 	atmosphere_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	atmosphere_label.add_theme_font_size_override("font_size", 18)
+	atmosphere_label.add_theme_font_size_override("font_size", 14)
+	atmosphere_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.82))
 	decoration_container.add_child(atmosphere_label)
 
-	decoration_list = VBoxContainer.new()
-	decoration_list.add_theme_constant_override("separation", 8)
+	decoration_list = HBoxContainer.new()
+	decoration_list.alignment = BoxContainer.ALIGNMENT_CENTER
+	decoration_list.add_theme_constant_override("separation", 18)
 	decoration_container.add_child(decoration_list)
-	
-	# 背包容器
+
+	# 旧背包/合成面板保留节点兼容调用，但不再占据首屏。
+	inventory_backdrop = ColorRect.new()
+	inventory_backdrop.visible = false
+	inventory_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(inventory_backdrop)
+
 	inventory_container = VBoxContainer.new()
-	inventory_container.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	inventory_container.position = Vector2(0, -200)
+	inventory_container.visible = false
 	add_child(inventory_container)
 	
 	var inventory_title = Label.new()
@@ -209,6 +307,7 @@ func _create_ui() -> void:
 	arrival_overlay.position = Vector2(-160, -90)
 	arrival_overlay.visible = false
 	arrival_overlay.modulate = Color(1, 1, 1, 0)
+	arrival_overlay.z_index = 20
 	add_child(arrival_overlay)
 
 	var overlay_box = VBoxContainer.new()
@@ -232,21 +331,42 @@ func _create_ui() -> void:
 	arrival_detail_label.add_theme_font_size_override("font_size", 16)
 	overlay_box.add_child(arrival_detail_label)
 
+	_create_seed_picker()
+	_create_decoration_drop_zone()
+	_create_decoration_drag_ghost()
+
 # 创建花盆位
 func _create_flower_slot(index: int) -> Control:
 	var slot = PanelContainer.new()
-	slot.custom_minimum_size = Vector2(180, 180)
 	slot.name = "Slot%d" % index
+	slot.tooltip_text = "点击照料这处花园"
+	var slot_style = _create_surface_style(EMPTY_SLOT_STYLE)
+	slot_style.border_width_left = 2
+	slot_style.border_width_top = 2
+	slot_style.border_width_right = 2
+	slot_style.border_width_bottom = 2
+	slot_style.border_color = Color(1.0, 0.94, 0.68, 0.62)
+	slot.add_theme_stylebox_override("panel", slot_style)
 	
 	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 10)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 2)
 	slot.add_child(vbox)
+
+	var plant_visual = GardenPlantVisualScript.new()
+	plant_visual.name = "PlantVisual"
+	plant_visual.custom_minimum_size = Vector2(86, 112)
+	plant_visual.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	plant_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plant_visual.visible = false
+	vbox.add_child(plant_visual)
 	
-	# 花盆图标
+	# 空热点保留轻量状态符号；花朵本体使用项目 PNG。
 	var pot = Label.new()
-	pot.text = "🪴"
+	pot.text = "+"
 	pot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pot.add_theme_font_size_override("font_size", 64)
+	pot.add_theme_font_size_override("font_size", 38)
+	pot.add_theme_color_override("font_color", Color(1.0, 0.96, 0.78))
 	pot.name = "PotIcon"
 	vbox.add_child(pot)
 	
@@ -254,7 +374,11 @@ func _create_flower_slot(index: int) -> Control:
 	var status = Label.new()
 	status.text = "空闲"
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status.add_theme_font_size_override("font_size", 16)
+	status.add_theme_font_size_override("font_size", 14)
+	status.add_theme_color_override("font_color", Color(1.0, 0.98, 0.9))
+	status.add_theme_color_override("font_shadow_color", Color(0.05, 0.05, 0.03, 0.9))
+	status.add_theme_constant_override("shadow_offset_x", 1)
+	status.add_theme_constant_override("shadow_offset_y", 1)
 	status.name = "StatusLabel"
 	vbox.add_child(status)
 	
@@ -262,6 +386,129 @@ func _create_flower_slot(index: int) -> Control:
 	slot.gui_input.connect(_on_slot_input.bind(index))
 	
 	return slot
+
+
+func _create_decoration_drop_zone() -> void:
+	decoration_drop_zone = PanelContainer.new()
+	decoration_drop_zone.name = "DecorationDropZone"
+	decoration_drop_zone.position = DECORATION_DROP_RECT.position
+	decoration_drop_zone.size = DECORATION_DROP_RECT.size
+	decoration_drop_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decoration_drop_zone.z_index = 12
+	decoration_drop_zone.visible = false
+	var style = _create_surface_style(Color(1.0, 0.9, 0.55, 0.12))
+	style.border_width_left = 3
+	style.border_width_top = 3
+	style.border_width_right = 3
+	style.border_width_bottom = 3
+	style.border_color = Color(1.0, 0.92, 0.56, 0.82)
+	decoration_drop_zone.add_theme_stylebox_override("panel", style)
+	add_child(decoration_drop_zone)
+
+	decoration_drop_label = Label.new()
+	decoration_drop_label.text = "拖到这里"
+	decoration_drop_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	decoration_drop_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	decoration_drop_label.add_theme_font_size_override("font_size", 20)
+	decoration_drop_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.72))
+	decoration_drop_zone.add_child(decoration_drop_label)
+
+
+func _create_decoration_drag_ghost() -> void:
+	decoration_drag_ghost = TextureRect.new()
+	decoration_drag_ghost.name = "DecorationDragGhost"
+	decoration_drag_ghost.size = Vector2(210, 190)
+	decoration_drag_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	decoration_drag_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	decoration_drag_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decoration_drag_ghost.modulate = Color(1.05, 1.05, 0.94, 0.86)
+	decoration_drag_ghost.z_index = 35
+	decoration_drag_ghost.visible = false
+	add_child(decoration_drag_ghost)
+
+
+func _create_surface_style(color: Color) -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = color
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	return style
+
+
+func _create_decoration_visuals() -> void:
+	for decoration_id in DECORATION_LAYOUT:
+		var layout: Dictionary = DECORATION_LAYOUT[decoration_id]
+		var visual = TextureRect.new()
+		visual.name = "Decoration_%s" % decoration_id
+		visual.position = layout.get("position", Vector2.ZERO)
+		visual.size = layout.get("size", Vector2(120, 120))
+		visual.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		visual.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		visual.texture = VisualAssetCatalogScript.get_decoration_texture(decoration_id)
+		visual.visible = false
+		decoration_visual_layer.add_child(visual)
+		decoration_visuals[decoration_id] = visual
+
+
+func _create_seed_picker() -> void:
+	seed_picker_overlay = Control.new()
+	seed_picker_overlay.name = "SeedPicker"
+	seed_picker_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	seed_picker_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	seed_picker_overlay.z_index = 40
+	seed_picker_overlay.visible = false
+	add_child(seed_picker_overlay)
+
+	var shade = ColorRect.new()
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.05, 0.08, 0.06, 0.32)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	seed_picker_overlay.add_child(shade)
+
+	var panel = PanelContainer.new()
+	panel.name = "SeedPickerSheet"
+	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	panel.offset_left = 20
+	panel.offset_top = -390
+	panel.offset_right = -20
+	panel.offset_bottom = -18
+	panel.add_theme_stylebox_override("panel", _create_surface_style(Color(0.97, 0.99, 0.96, 1.0)))
+	seed_picker_overlay.add_child(panel)
+
+	var content = VBoxContainer.new()
+	content.add_theme_constant_override("separation", 12)
+	panel.add_child(content)
+
+	var title = Label.new()
+	title.text = "选择要种下的花种"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.12, 0.2, 0.14))
+	content.add_child(title)
+
+	var hint = Label.new()
+	hint.text = "种下后会消耗 1 颗，成熟可收获星光"
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.add_theme_font_size_override("font_size", 16)
+	hint.add_theme_color_override("font_color", Color(0.24, 0.32, 0.25))
+	content.add_child(hint)
+
+	var seed_scroll = ScrollContainer.new()
+	seed_scroll.custom_minimum_size = Vector2(0, 245)
+	seed_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(seed_scroll)
+
+	seed_picker_list = VBoxContainer.new()
+	seed_picker_list.custom_minimum_size = Vector2(660, 0)
+	seed_picker_list.add_theme_constant_override("separation", 10)
+	seed_scroll.add_child(seed_picker_list)
 
 # ==================== 信号连接 ====================
 func _connect_signals() -> void:
@@ -298,33 +545,59 @@ func _update_slot_display(slot: Control, data: Dictionary, _index: int) -> void:
 	
 	var pot_icon = vbox.get_node_or_null("PotIcon")
 	var status_label = vbox.get_node_or_null("StatusLabel")
+	var plant_visual = vbox.get_node_or_null("PlantVisual")
 	
-	if not pot_icon or not status_label:
+	if not pot_icon or not status_label or not plant_visual:
 		return
 	
 	if data.is_empty():
 		var empty_visual = _get_empty_slot_visual(_index)
 		pot_icon.text = str(empty_visual.get("icon", "🪴"))
+		pot_icon.visible = true
+		plant_visual.visible = false
 		status_label.text = str(empty_visual.get("label", "空闲"))
-		status_label.modulate = empty_visual.get("color", Color.GRAY)
-		slot.self_modulate = _get_slot_modulate(_index)
+		status_label.modulate = Color.WHITE
+		_apply_hotspot_style(slot, _index == highlighted_restoration_slot)
 	else:
 		var flower_type = data.get("type", 1)
 		var flower_level = data.get("level", 1)
 		var growth = data.get("growth", 0.0)
-		
-		# 根据等级显示不同花朵
-		var flower_icons = ["🌱", "🌿", "🌸", "🌺", "💐"]
-		pot_icon.text = flower_icons[mini(flower_level - 1, 4)]
+		pot_icon.visible = false
+		var flower_texture = VisualAssetCatalogScript.get_tile_texture(int(flower_type))
+		plant_visual.set_plant(flower_texture, float(growth), int(flower_level), _index)
+		plant_visual.visible = flower_texture != null
 		
 		# 状态文本
 		if growth >= 1.0:
-			status_label.text = "可收获"
-			status_label.modulate = Color(0.2, 0.8, 0.2)
+			status_label.text = "点击收获"
+			status_label.modulate = Color(1.0, 0.96, 0.58)
 		else:
-			status_label.text = "成长中 %d%%" % int(growth * 100)
-			status_label.modulate = Color(0.8, 0.6, 0.2)
-		slot.self_modulate = Color(1, 1, 1, 1)
+			status_label.text = "%s · %d%%" % [Constants.TILE_NAMES.get(flower_type, "花朵"), int(growth * 100)]
+			status_label.modulate = Color.WHITE
+		_apply_planted_style(slot)
+
+
+func _apply_hotspot_style(slot: Control, active: bool) -> void:
+	if not slot is PanelContainer:
+		return
+	var style = _create_surface_style(ACTIVE_SLOT_STYLE if active else EMPTY_SLOT_STYLE)
+	style.border_width_left = 3 if active else 1
+	style.border_width_top = 3 if active else 1
+	style.border_width_right = 3 if active else 1
+	style.border_width_bottom = 3 if active else 1
+	style.border_color = Color(1.0, 0.93, 0.55, 0.9 if active else 0.38)
+	(slot as PanelContainer).add_theme_stylebox_override("panel", style)
+
+
+func _apply_planted_style(slot: Control) -> void:
+	if not slot is PanelContainer:
+		return
+	var style = _create_surface_style(Color(0, 0, 0, 0))
+	style.border_width_left = 0
+	style.border_width_top = 0
+	style.border_width_right = 0
+	style.border_width_bottom = 0
+	(slot as PanelContainer).add_theme_stylebox_override("panel", style)
 
 
 func _get_empty_slot_visual(slot_index: int) -> Dictionary:
@@ -367,9 +640,15 @@ func _get_empty_slot_visual(slot_index: int) -> Dictionary:
 				"color": Color(0.45, 0.55, 0.45)
 			}
 		_:
+			var spatial_prompts: Array[String] = [
+				"种在大花盆",
+				"种在蓝花盆",
+				"照料中央花圃",
+				"点亮右侧花盆"
+			]
 			return {
-				"icon": "✨",
-				"label": "微光已落下",
+				"icon": "+",
+				"label": spatial_prompts[clampi(slot_index, 0, spatial_prompts.size() - 1)],
 				"color": Color(0.75, 0.65, 0.2)
 			}
 
@@ -424,6 +703,7 @@ func _update_decoration_display() -> void:
 
 	for child in decoration_list.get_children():
 		child.queue_free()
+	decoration_choice_buttons.clear()
 
 	var restoration = SaveManager.get_restoration_state()
 	if restoration_label:
@@ -439,49 +719,104 @@ func _update_decoration_display() -> void:
 	highlighted_restoration_slot = int(restoration.get("focus_slot", -1))
 	_render_restoration_badges(int(restoration.get("stage", 0)))
 	_update_restoration_palette(int(restoration.get("stage", 0)))
+	_update_decoration_visuals()
 
-	var display_data = DecorationService.get_display_data()
-	if atmosphere_label:
-		atmosphere_label.text = "氛围值 %d" % int(display_data.get("atmosphere", 0))
-		atmosphere_label.visible = is_decoration_unlocked()
-
-	if not is_decoration_unlocked():
-		var locked_label = Label.new()
-		locked_label.text = "完成第 3 局后，这里会慢慢开放装饰与点亮。"
-		locked_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		locked_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		locked_label.add_theme_font_size_override("font_size", 15)
-		decoration_list.add_child(locked_label)
+	var decoration_unlocked = is_decoration_unlocked()
+	var choice_available = decoration_unlocked and not _has_primary_decoration_choice()
+	decoration_container.visible = choice_available
+	decoration_backdrop.visible = choice_available
+	if not choice_available:
 		return
 
-	var catalog = display_data.get("catalog", [])
-	for decoration in catalog:
-		var row = HBoxContainer.new()
-		row.alignment = BoxContainer.ALIGNMENT_CENTER
-		row.add_theme_constant_override("separation", 8)
+	if atmosphere_label:
+		atmosphere_label.visible = true
 
-		var label = Label.new()
-		label.text = "%s %s\n%d✨  +%d氛围" % [
-			decoration.get("icon", ""),
+	for decoration_id in PRIMARY_DECORATION_CHOICES:
+		var decoration = DecorationService.get_decoration(decoration_id)
+		var texture = VisualAssetCatalogScript.get_decoration_texture(decoration_id)
+		if decoration.is_empty() or texture == null:
+			continue
+		var choice_btn = Button.new()
+		choice_btn.name = "DecorationChoice_%s" % decoration_id
+		choice_btn.text = "%s · %d ✨" % [
 			decoration.get("name", "装饰"),
-			int(decoration.get("cost", 0)),
-			int(decoration.get("atmosphere", 0))
+			int(decoration.get("cost", 0))
 		]
-		label.add_theme_font_size_override("font_size", 15)
-		label.custom_minimum_size = Vector2(145, 48)
-		row.add_child(label)
+		choice_btn.icon = texture
+		choice_btn.expand_icon = true
+		choice_btn.add_theme_constant_override("icon_max_width", 190)
+		choice_btn.custom_minimum_size = Vector2(280, 230)
+		choice_btn.add_theme_font_size_override("font_size", 17)
+		choice_btn.tooltip_text = "按住并拖到庭院中的发光位置"
+		choice_btn.button_down.connect(_begin_decoration_drag.bind(decoration_id))
+		decoration_list.add_child(choice_btn)
+		decoration_choice_buttons[decoration_id] = choice_btn
 
-		var action_btn = Button.new()
-		action_btn.custom_minimum_size = Vector2(84, 40)
-		if decoration.get("owned", false):
-			action_btn.text = "已点亮"
-			action_btn.disabled = true
-		else:
-			action_btn.text = "购买"
-			action_btn.pressed.connect(_on_decoration_purchase_pressed.bind(str(decoration.get("id", ""))))
-		row.add_child(action_btn)
 
-		decoration_list.add_child(row)
+func _has_primary_decoration_choice() -> bool:
+	for decoration_id in PRIMARY_DECORATION_CHOICES:
+		if DecorationService.is_owned(decoration_id):
+			return true
+	return false
+
+
+func _update_decoration_visuals() -> void:
+	for decoration_id in decoration_visuals:
+		var visual = decoration_visuals[decoration_id] as TextureRect
+		if visual == null:
+			continue
+		var is_preview = decoration_id == previewed_decoration_id
+		visual.visible = DecorationService.is_owned(decoration_id) or is_preview
+		visual.modulate = Color(1.1, 1.0, 0.72, 0.34) if is_preview else Color.WHITE
+
+
+func _begin_decoration_drag(decoration_id: String) -> void:
+	if not is_decoration_unlocked() or _has_primary_decoration_choice():
+		return
+	var texture = VisualAssetCatalogScript.get_decoration_texture(decoration_id)
+	if texture == null:
+		return
+	dragging_decoration_id = decoration_id
+	previewed_decoration_id = decoration_id
+	decoration_drag_ghost.texture = texture
+	decoration_drag_ghost.visible = true
+	decoration_drop_zone.visible = true
+	decoration_drop_label.text = "松手放置%s" % DecorationService.get_decoration(decoration_id).get("name", "装饰")
+	_update_decoration_drag_position(get_viewport().get_mouse_position())
+	_update_decoration_visuals()
+	playtest_event.emit("decoration_drag_started", {"decoration_id": decoration_id})
+
+
+func _input(event: InputEvent) -> void:
+	if dragging_decoration_id.is_empty():
+		return
+	if event is InputEventMouseMotion:
+		_update_decoration_drag_position(event.position)
+	elif event is InputEventMouseButton and not event.pressed:
+		_finish_decoration_drag(event.position)
+	elif event is InputEventScreenDrag:
+		_update_decoration_drag_position(event.position)
+	elif event is InputEventScreenTouch and not event.pressed:
+		_finish_decoration_drag(event.position)
+
+
+func _update_decoration_drag_position(pointer_position: Vector2) -> void:
+	if decoration_drag_ghost:
+		decoration_drag_ghost.position = pointer_position - decoration_drag_ghost.size * 0.5
+
+
+func _finish_decoration_drag(pointer_position: Vector2) -> void:
+	var decoration_id = dragging_decoration_id
+	var dropped_in_zone = decoration_drop_zone.get_global_rect().has_point(pointer_position)
+	dragging_decoration_id = ""
+	decoration_drag_ghost.visible = false
+	decoration_drop_zone.visible = false
+	if dropped_in_zone:
+		playtest_event.emit("decoration_dropped", {"decoration_id": decoration_id})
+		_confirm_decoration_purchase(decoration_id)
+		return
+	_cancel_decoration_preview()
+	PopupManager.show_toast("把装饰拖到发光的庭院位置")
 
 
 func _render_restoration_badges(current_stage: int) -> void:
@@ -502,18 +837,19 @@ func _render_restoration_badges(current_stage: int) -> void:
 func _update_restoration_palette(stage: int) -> void:
 	if background_rect == null:
 		return
-	background_rect.texture = VisualAssetCatalogScript.get_garden_background(stage)
+	# 空间交互需要稳定构图；恢复进度由热点和放置物呈现，不再切换镜头完全不同的背景。
+	background_rect.texture = VisualAssetCatalogScript.get_garden_background(0)
 	if background_tint == null:
 		return
 	match stage:
 		0:
-			background_tint.color = Color(0.88, 0.92, 0.9, 0.34)
+			background_tint.color = Color(0.72, 0.78, 0.76, 0.18)
 		1:
-			background_tint.color = Color(0.86, 0.95, 0.88, 0.3)
+			background_tint.color = Color(0.9, 0.94, 0.84, 0.12)
 		2:
-			background_tint.color = Color(0.92, 0.97, 0.88, 0.26)
+			background_tint.color = Color(0.98, 0.92, 0.78, 0.08)
 		_:
-			background_tint.color = Color(0.95, 0.98, 0.92, 0.22)
+			background_tint.color = Color(1.0, 0.9, 0.76, 0.04)
 
 
 func _get_slot_modulate(slot_index: int) -> Color:
@@ -522,8 +858,10 @@ func _get_slot_modulate(slot_index: int) -> Color:
 	return Color(0.94, 0.94, 0.94, 1.0)
 
 # ==================== 输入处理 ====================
-func _on_slot_input(index: int, event: InputEvent) -> void:
+func _on_slot_input(event: InputEvent, index: int) -> void:
 	if event is InputEventMouseButton and event.pressed:
+		_on_slot_clicked(index)
+	elif event is InputEventScreenTouch and event.pressed:
 		_on_slot_clicked(index)
 
 func _on_slot_clicked(index: int) -> void:
@@ -554,21 +892,73 @@ func _handle_flower_action(index: int, flower_data: Dictionary) -> void:
 		PopupManager.show_toast("%s Lv.%d - 成长中..." % [flower_name, level])
 
 func _handle_plant_action(index: int) -> void:
-	var seed = _get_first_plantable_seed()
-	if seed.is_empty():
+	var plantable_seeds = _get_plantable_seeds()
+	if plantable_seeds.is_empty():
 		PopupManager.show_toast("没有可种植的花种，先去闯关吧")
 		return
+	_show_seed_picker(index, plantable_seeds)
 
-	var flower_type = seed.get("type", Constants.TileType.RED_ROSE)
-	var level = seed.get("level", 1)
+
+func _show_seed_picker(slot_index: int, seeds: Array = []) -> void:
+	if seeds.is_empty():
+		seeds = _get_plantable_seeds()
+	if seeds.is_empty():
+		return
+	pending_plant_slot = slot_index
+	for child in seed_picker_list.get_children():
+		child.queue_free()
+
+	for seed in seeds:
+		var flower_type = int(seed.get("type", Constants.TileType.RED_ROSE))
+		var level = int(seed.get("level", 1))
+		var amount = int(seed.get("amount", 0))
+		var seed_btn = Button.new()
+		seed_btn.text = "%s  Lv.%d  x%d    成熟收获 %d ✨" % [
+			Constants.TILE_NAMES.get(flower_type, "花种"),
+			level,
+			amount,
+			_get_harvest_reward(level)
+		]
+		seed_btn.icon = VisualAssetCatalogScript.get_tile_texture(flower_type)
+		seed_btn.expand_icon = true
+		seed_btn.add_theme_constant_override("icon_max_width", 52)
+		seed_btn.custom_minimum_size = Vector2(640, 58)
+		seed_btn.add_theme_font_size_override("font_size", 17)
+		seed_btn.pressed.connect(_confirm_seed_selection.bind(slot_index, flower_type, level))
+		seed_picker_list.add_child(seed_btn)
+
+	var cancel_btn = Button.new()
+	cancel_btn.text = "暂不种植"
+	cancel_btn.custom_minimum_size = Vector2(460, 44)
+	cancel_btn.pressed.connect(_hide_seed_picker)
+	seed_picker_list.add_child(cancel_btn)
+	seed_picker_overlay.visible = true
+
+
+func _hide_seed_picker() -> void:
+	seed_picker_overlay.visible = false
+	pending_plant_slot = -1
+
+
+func _confirm_seed_selection(slot_index: int, flower_type: int, level: int) -> void:
+	if pending_plant_slot != slot_index:
+		return
+	var slots = SaveManager.get_garden_data().get("slots", [])
+	if slot_index < slots.size() and not slots[slot_index].is_empty():
+		_hide_seed_picker()
+		PopupManager.show_toast("这个花盆已经有花了")
+		return
 	if not SaveManager.consume_garden_inventory_item(flower_type, level, 1):
 		PopupManager.show_toast("花种数量不足")
 		return
 
+	last_selected_seed = {"slot": slot_index, "type": flower_type, "level": level}
+	playtest_event.emit("garden_seed_selected", last_selected_seed.duplicate(true))
+	_hide_seed_picker()
 	_load_garden_data()
-	plant_flower(index, flower_type, level)
+	plant_flower(slot_index, flower_type, level)
 	var flower_name = Constants.TILE_NAMES.get(flower_type, "花朵")
-	PopupManager.show_toast("种下了 %s 花种" % flower_name)
+	PopupManager.show_toast("种下了 %s Lv.%d，成熟可收获 %d ✨" % [flower_name, level, _get_harvest_reward(level)])
 
 func _harvest_flower(index: int) -> void:
 	var slots = garden_data.get("slots", [])
@@ -585,6 +975,7 @@ func _harvest_flower(index: int) -> void:
 		player_data["stars"] = player_data.get("stars", 0) + stars
 		SaveManager.update_player_data(player_data)
 		DailyService.record_event(DailyService.TASK_HARVEST_FLOWER)
+		MetaUnlockService.record_behavior(MetaUnlockService.BEHAVIOR_FLOWER_HARVESTED)
 		
 		# 清空花盆
 		slots[index] = {}
@@ -604,6 +995,32 @@ func _on_synthesize_pressed(flower_type: int, level: int) -> void:
 		PopupManager.show_toast("先完成前三局，让花园先恢复呼吸。")
 		return
 	AudioManager.play_ui_click()
+	var flower_name = Constants.TILE_NAMES.get(flower_type, "花朵")
+	last_synthesis_preview = {
+		"type": flower_type,
+		"from_level": level,
+		"to_level": level + 1,
+		"cost_count": GardenSynthesisService.SYNTHESIS_COST_COUNT,
+		"from_reward": _get_harvest_reward(level),
+		"to_reward": _get_harvest_reward(level + 1)
+	}
+	playtest_event.emit("garden_synthesis_previewed", last_synthesis_preview.duplicate(true))
+	PopupManager.show_confirm(
+		"合成预览",
+		"消耗：%s Lv.%d x%d\n获得：%s Lv.%d x1\n成熟收获：%d ✨ → %d ✨" % [
+			flower_name,
+			level,
+			GardenSynthesisService.SYNTHESIS_COST_COUNT,
+			flower_name,
+			level + 1,
+			_get_harvest_reward(level),
+			_get_harvest_reward(level + 1)
+		],
+		_perform_synthesis.bind(flower_type, level)
+	)
+
+
+func _perform_synthesis(flower_type: int, level: int) -> void:
 	var result = GardenSynthesisService.synthesize_once(flower_type, level)
 	if not result.get("success", false):
 		PopupManager.show_toast("材料不足，无法合成")
@@ -611,8 +1028,14 @@ func _on_synthesize_pressed(flower_type: int, level: int) -> void:
 
 	_load_garden_data()
 	flower_synthesized.emit(flower_type, level, int(result.get("to_level", level + 1)))
+	MetaUnlockService.complete_feature_task(MetaUnlockService.FEATURE_SYNTHESIS)
+	playtest_event.emit("garden_synthesis_completed", result.duplicate(true))
 	var flower_name = Constants.TILE_NAMES.get(flower_type, "花朵")
-	PopupManager.show_toast("%s Lv.%d 合成为 Lv.%d" % [flower_name, level, int(result.get("to_level", level + 1))])
+	PopupManager.show_toast("%s 升到 Lv.%d，成熟收获提升到 %d ✨" % [
+		flower_name,
+		int(result.get("to_level", level + 1)),
+		_get_harvest_reward(int(result.get("to_level", level + 1)))
+	])
 
 
 func _on_decoration_purchase_pressed(decoration_id: String) -> void:
@@ -620,18 +1043,68 @@ func _on_decoration_purchase_pressed(decoration_id: String) -> void:
 		PopupManager.show_toast("先让花园恢复到微光庭，再来点亮装饰。")
 		return
 	AudioManager.play_ui_click()
+	var decoration = DecorationService.get_decoration(decoration_id)
+	if decoration.is_empty() or VisualAssetCatalogScript.get_decoration_texture(decoration_id) == null:
+		PopupManager.show_toast("装饰素材尚未准备好")
+		return
+	if DecorationService.is_owned(decoration_id):
+		PopupManager.show_toast("这个装饰已经点亮了")
+		return
+
+	previewed_decoration_id = decoration_id
+	_update_decoration_visuals()
+	playtest_event.emit("decoration_previewed", {"decoration_id": decoration_id})
+	PopupManager.show_confirm(
+		"放置预览",
+		"%s · 消耗 %d ✨ · 花园氛围 +%d\n花园画面同时显示购买后的固定位置。" % [
+			decoration.get("name", "装饰"),
+			int(decoration.get("cost", 0)),
+			int(decoration.get("atmosphere", 0))
+		],
+		_confirm_decoration_purchase.bind(decoration_id),
+		_cancel_decoration_preview,
+		VisualAssetCatalogScript.get_decoration_texture(decoration_id)
+	)
+
+
+func _cancel_decoration_preview() -> void:
+	dragging_decoration_id = ""
+	previewed_decoration_id = ""
+	if decoration_drag_ghost:
+		decoration_drag_ghost.visible = false
+	if decoration_drop_zone:
+		decoration_drop_zone.visible = false
+	_update_decoration_visuals()
+
+
+func _confirm_decoration_purchase(decoration_id: String) -> void:
 	var result = DecorationService.purchase_decoration(decoration_id)
 	if not result.get("success", false):
+		_cancel_decoration_preview()
 		PopupManager.show_toast(_get_decoration_error_message(str(result.get("reason", ""))))
 		return
 
+	previewed_decoration_id = ""
 	garden_data = SaveManager.get_garden_data()
 	_update_garden_display()
 	var decoration = result.get("decoration", {})
-	PopupManager.show_toast("点亮 %s，氛围值 +%d" % [
-		decoration.get("name", "装饰"),
-		int(result.get("atmosphere", 0))
-	])
+	_play_decoration_placed_feedback(decoration_id)
+	MetaUnlockService.complete_feature_task(MetaUnlockService.FEATURE_DECORATION)
+	playtest_event.emit("decoration_placed", {
+		"decoration_id": decoration_id,
+		"atmosphere": int(result.get("atmosphere", 0))
+	})
+	PopupManager.show_toast("%s 已成为这处庭院的永久选择" % decoration.get("name", "装饰"))
+
+
+func _play_decoration_placed_feedback(decoration_id: String) -> void:
+	var visual = decoration_visuals.get(decoration_id) as TextureRect
+	if visual == null:
+		return
+	visual.modulate = Color(1.15, 1.15, 0.8, 0.25)
+	var tween = create_tween()
+	active_tweens.append(tween)
+	tween.tween_property(visual, "modulate", Color.WHITE, 0.45)
 
 
 func _get_decoration_error_message(reason: String) -> String:
@@ -640,6 +1113,8 @@ func _get_decoration_error_message(reason: String) -> String:
 			return "星光不足，先去闯关或收获花朵吧"
 		"already_owned":
 			return "这个装饰已经点亮了"
+		"choice_locked":
+			return "这处庭院已经完成布置"
 		"invalid_id":
 			return "装饰配置不存在"
 		_:
@@ -660,11 +1135,11 @@ func show_garden(context: Dictionary = {}) -> void:
 
 
 func is_synthesis_unlocked() -> bool:
-	return int(SaveManager.get_player_data().get("total_runs", 0)) >= META_UNLOCK_RUNS
+	return MetaUnlockService.is_unlocked(MetaUnlockService.FEATURE_SYNTHESIS)
 
 
 func is_decoration_unlocked() -> bool:
-	return int(SaveManager.get_player_data().get("total_runs", 0)) >= META_UNLOCK_RUNS
+	return MetaUnlockService.is_unlocked(MetaUnlockService.FEATURE_DECORATION)
 
 func hide_garden() -> void:
 	_stop_active_tweens()
@@ -723,12 +1198,13 @@ func _get_growth_duration(level: int) -> float:
 	return Constants.FLOWER_GROWTH_DURATION * maxf(1.0, float(level))
 
 
-func _get_first_plantable_seed() -> Dictionary:
+func _get_plantable_seeds() -> Array:
+	var plantable: Array = []
 	var inventory = garden_data.get("inventory", [])
 	for item in inventory:
-		if int(item.get("level", 1)) <= GardenSynthesisService.MAX_SYNTHESIS_LEVEL:
-			return item
-	return {}
+		if int(item.get("amount", 0)) > 0 and int(item.get("level", 1)) <= GardenSynthesisService.MAX_SYNTHESIS_LEVEL:
+			plantable.append(item)
+	return plantable
 
 
 func _get_harvest_reward(level: int) -> int:

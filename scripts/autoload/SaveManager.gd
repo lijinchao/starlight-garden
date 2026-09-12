@@ -28,10 +28,18 @@ const DEFAULT_DATA = {
 	"daily": {
 		"date": "",
 		"gift_claimed": false,
-		"tasks": {}
+		"tasks": {},
+		"challenge": {}
+	},
+	"meta_progression": {
+		"unlocked": [],
+		"pending": [],
+		"completed_tasks": [],
+		"behavior_counts": {},
+		"active_prompt": ""
 	},
 	"settings": {
-		"bgm_volume": 0.5,
+		"bgm_volume": 0.35,
 		"sfx_volume": 0.7,
 		"language": "zh_CN"
 	}
@@ -195,6 +203,17 @@ func update_daily_data(data: Dictionary) -> void:
 	save_game()
 
 
+func get_meta_progression_data() -> Dictionary:
+	if not save_data.has("meta_progression"):
+		save_data["meta_progression"] = DEFAULT_DATA["meta_progression"].duplicate(true)
+	return _normalize_meta_progression_data(save_data["meta_progression"])
+
+
+func update_meta_progression_data(data: Dictionary) -> void:
+	save_data["meta_progression"] = _normalize_meta_progression_data(data)
+	save_game()
+
+
 func add_garden_inventory_item(flower_type: int, level: int = 1, amount: int = 1) -> void:
 	if amount <= 0:
 		return
@@ -289,6 +308,11 @@ func _normalize_save_data(data: Dictionary) -> Dictionary:
 	if data.has("daily") and data["daily"] is Dictionary:
 		normalized["daily"] = _normalize_daily_data(data["daily"])
 
+	if data.has("meta_progression") and data["meta_progression"] is Dictionary:
+		normalized["meta_progression"] = _normalize_meta_progression_data(data["meta_progression"])
+	else:
+		normalized["meta_progression"] = _build_legacy_meta_progression(data)
+
 	return normalized
 
 
@@ -339,7 +363,8 @@ func _normalize_daily_data(data: Dictionary) -> Dictionary:
 	var normalized = {
 		"date": str(data.get("date", "")),
 		"gift_claimed": bool(data.get("gift_claimed", false)),
-		"tasks": {}
+		"tasks": {},
+		"challenge": {}
 	}
 
 	if data.has("tasks") and data["tasks"] is Dictionary:
@@ -354,4 +379,53 @@ func _normalize_daily_data(data: Dictionary) -> Dictionary:
 				"completed": bool(task.get("completed", false))
 			}
 
+	if data.get("challenge", {}) is Dictionary:
+		var challenge = data.get("challenge", {})
+		normalized["challenge"] = {
+			"challenge_id": str(challenge.get("challenge_id", "")),
+			"attempts": maxi(0, int(challenge.get("attempts", 0))),
+			"completed": bool(challenge.get("completed", false)),
+			"best_moves_left": int(challenge.get("best_moves_left", -1)),
+			"best_chain": maxi(0, int(challenge.get("best_chain", 0))),
+			"best_leaf_ratio": clampf(float(challenge.get("best_leaf_ratio", 0.0)), 0.0, 1.0),
+			"last_outcome": str(challenge.get("last_outcome", ""))
+		}
+
 	return normalized
+
+
+func _normalize_meta_progression_data(data: Dictionary) -> Dictionary:
+	var normalized = DEFAULT_DATA["meta_progression"].duplicate(true)
+	for field in ["unlocked", "pending", "completed_tasks"]:
+		if data.get(field, []) is Array:
+			for feature_id in data.get(field, []):
+				var normalized_id = str(feature_id)
+				if not normalized_id.is_empty() and not normalized[field].has(normalized_id):
+					normalized[field].append(normalized_id)
+
+	if data.get("behavior_counts", {}) is Dictionary:
+		for behavior_id in data.get("behavior_counts", {}).keys():
+			normalized["behavior_counts"][str(behavior_id)] = max(0, int(data["behavior_counts"][behavior_id]))
+
+	var active_prompt = str(data.get("active_prompt", ""))
+	if normalized["unlocked"].has(active_prompt) and not normalized["completed_tasks"].has(active_prompt):
+		normalized["active_prompt"] = active_prompt
+	return normalized
+
+
+func _build_legacy_meta_progression(data: Dictionary) -> Dictionary:
+	var migrated = DEFAULT_DATA["meta_progression"].duplicate(true)
+	var player = data.get("player", {}) if data.get("player", {}) is Dictionary else {}
+	var total_runs = int(player.get("total_runs", 0))
+	if total_runs < 3:
+		return migrated
+
+	# 旧版本在第 3 局后同时开放这些能力；迁移时保留玩家已经见过的入口。
+	migrated["unlocked"] = ["synthesis", "daily_gift", "decoration", "star_blessing"]
+	var flower_language = data.get("flower_language", {}) if data.get("flower_language", {}) is Dictionary else {}
+	if not flower_language.get("fragments", {}).is_empty() or not flower_language.get("unlocked", []).is_empty():
+		migrated["unlocked"].append("flower_journal")
+	migrated["completed_tasks"] = migrated["unlocked"].duplicate()
+	if int(player.get("failure_streak", 0)) > 0:
+		migrated["behavior_counts"]["level_failed"] = int(player.get("failure_streak", 0))
+	return migrated

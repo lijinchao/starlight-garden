@@ -1,13 +1,15 @@
 ## AudioManager - 全局音频管理器
 extends Node
 
+const SOFT_GARDEN_BGM = preload("res://assets/audio/soft_garden_loop.wav")
+
 # 音频播放器
 var bgm_player: AudioStreamPlayer
 var sfx_player: AudioStreamPlayer
 var sfx_players: Array = []  # 多个SFX播放器用于同时播放
 
 # 音量设置
-var bgm_volume: float = 0.5
+var bgm_volume: float = 0.35
 var sfx_volume: float = 0.7
 
 # 预生成的音效缓存
@@ -48,7 +50,11 @@ func _pregenerate_sounds() -> void:
 	sound_cache["fall"] = SoundGenerator.generate_fall_sound()
 	sound_cache["victory"] = SoundGenerator.generate_victory_sound()
 	sound_cache["failure"] = SoundGenerator.generate_failure_sound()
-	sound_cache["bgm"] = SoundGenerator.generate_bgm_loop()
+	var bgm_stream = SOFT_GARDEN_BGM.duplicate() as AudioStreamWAV
+	bgm_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	bgm_stream.loop_begin = 0
+	bgm_stream.loop_end = int(round(bgm_stream.get_length() * bgm_stream.mix_rate))
+	sound_cache["bgm"] = bgm_stream
 	
 	# 预生成连击音效
 	for i in range(1, 8):
@@ -73,7 +79,7 @@ func play_bgm(fade_in: bool = true) -> void:
 		var tween = create_tween()
 		bgm_player.volume_db = -80
 		bgm_player.play()
-		tween.tween_property(bgm_player, "volume_db", linear_to_db(bgm_volume), 1.0)
+		tween.tween_property(bgm_player, "volume_db", linear_to_db(bgm_volume), 2.2)
 	else:
 		bgm_player.volume_db = linear_to_db(bgm_volume)
 		bgm_player.play()

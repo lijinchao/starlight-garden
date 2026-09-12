@@ -258,7 +258,7 @@ func _update_hud() -> void:
 func _update_breeze_button() -> void:
 	if not breeze_btn:
 		return
-	var unlocked = int(SaveManager.get_player_data().get("total_runs", 0)) >= META_UNLOCK_RUNS
+	var unlocked = MetaUnlockService.is_unlocked(MetaUnlockService.FEATURE_STAR_BLESSING)
 	breeze_btn.visible = unlocked
 	if not unlocked:
 		return
@@ -272,7 +272,7 @@ func _update_breeze_button() -> void:
 
 
 func _on_breeze_pressed() -> void:
-	if int(SaveManager.get_player_data().get("total_runs", 0)) < META_UNLOCK_RUNS:
+	if not MetaUnlockService.is_unlocked(MetaUnlockService.FEATURE_STAR_BLESSING):
 		PopupManager.show_toast("先完成前三局，让花园先恢复呼吸。")
 		return
 	if is_processing_tile:

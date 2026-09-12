@@ -193,51 +193,81 @@ static func generate_fall_sound() -> AudioStream:
 	audio_stream.data = data
 	return audio_stream
 
-# 生成背景音乐（简单循环）
+# 生成柔和但有轻快律动、无硬切的花园音乐循环。
 static func generate_bgm_loop() -> AudioStream:
 	var audio_stream = AudioStreamWAV.new()
 	audio_stream.format = AudioStreamWAV.FORMAT_16_BITS
-	audio_stream.mix_rate = 44100
-	audio_stream.stereo = false
-	
-	# 生成4秒的循环音乐
-	var duration = 4.0
-	var sample_count = int(44100 * duration)
+	audio_stream.mix_rate = 22050
+	audio_stream.stereo = true
+
+	var duration = 12.0
+	var sample_count = int(audio_stream.mix_rate * duration)
 	var data = PackedByteArray()
-	
-	# 简单的和弦进行 C-Am-F-G
+	data.resize(sample_count * 4)
+
+	# C6 - Am7 - Fmaj7 - G6，保持温暖明亮，避免尖锐的大跳。
 	var chord_progression = [
-		[261.63, 329.63, 392.00],  # C
-		[220.00, 261.63, 329.63],  # Am
-		[174.61, 220.00, 261.63],  # F
-		[196.00, 246.94, 293.66]   # G
+		[130.81, 164.81, 196.00, 220.00],
+		[110.00, 130.81, 164.81, 196.00],
+		[130.81, 174.61, 220.00, 261.63],
+		[98.00, 146.83, 196.00, 246.94]
 	]
-	
-	var beat_duration = 1.0  # 每个和弦1秒
-	
+	var melody = [
+		329.63, 392.00, 440.00, 523.25,
+		440.00, 392.00, 329.63, 293.66,
+		329.63, 392.00, 523.25, 440.00,
+		392.00, 329.63, 293.66, 261.63
+	]
+	var chord_duration = duration / chord_progression.size()
+	var melody_duration = duration / melody.size()
+
 	for i in range(sample_count):
-		var t = float(i) / 44100.0
-		var chord_index = int(t / beat_duration) % chord_progression.size()
-		var chord = chord_progression[chord_index]
-		
-		var sample = 0.0
-		for freq in chord:
-			# 添加轻微的音量变化
-			var vibrato = sin(2.0 * PI * 5.0 * t) * 0.05
-			sample += sin(2.0 * PI * freq * t * (1.0 + vibrato)) * 0.15
-		
-		# 添加包络
-		var beat_progress = fmod(t, beat_duration)
-		var envelope = 0.5 + 0.5 * cos(beat_progress * PI)
-		sample *= envelope * 0.3
-		
-		var sample_int = int(clamp(sample, -1.0, 1.0) * 32767)
-		data.append(sample_int & 0xFF)
-		data.append((sample_int >> 8) & 0xFF)
-	
+		var t = float(i) / audio_stream.mix_rate
+		var chord_index = int(t / chord_duration) % chord_progression.size()
+		var next_chord_index = (chord_index + 1) % chord_progression.size()
+		var chord_progress = fmod(t, chord_duration) / chord_duration
+		var blend = clampf((chord_progress - 0.78) / 0.22, 0.0, 1.0)
+		blend = blend * blend * (3.0 - 2.0 * blend)
+		var current_gain = cos(blend * PI * 0.5)
+		var next_gain = sin(blend * PI * 0.5)
+		var left = 0.0
+		var right = 0.0
+
+		for note_index in range(4):
+			var current_freq = _loop_safe_frequency(float(chord_progression[chord_index][note_index]), duration)
+			var next_freq = _loop_safe_frequency(float(chord_progression[next_chord_index][note_index]), duration)
+			var current_voice = sin(TAU * current_freq * t) * current_gain
+			var next_voice = sin(TAU * next_freq * t) * next_gain
+			var voice = (current_voice + next_voice) * 0.025
+			var pan = -0.34 + note_index * 0.23
+			left += voice * (1.0 - pan) * 0.5
+			right += voice * (1.0 + pan) * 0.5
+
+		var melody_index = int(t / melody_duration) % melody.size()
+		var melody_progress = fmod(t, melody_duration) / melody_duration
+		var melody_envelope = sin(PI * melody_progress) * exp(-1.35 * melody_progress)
+		var beat_accent = 1.12 if melody_index % 4 == 0 else (1.0 if melody_index % 2 == 0 else 0.9)
+		var melody_freq = _loop_safe_frequency(float(melody[melody_index]), duration)
+		var melody_voice = sin(TAU * melody_freq * t) * melody_envelope * 0.026 * beat_accent
+		var sparkle = sin(TAU * melody_freq * 2.0 * t) * melody_envelope * melody_envelope * 0.0035
+		var melody_pan = -0.16 if melody_index % 2 == 0 else 0.16
+		var breathing = 0.97 + sin(TAU * t / 6.0) * 0.03
+		left = (left + (melody_voice + sparkle) * (1.0 - melody_pan) * 0.5) * breathing
+		right = (right + (melody_voice + sparkle) * (1.0 + melody_pan) * 0.5) * breathing
+
+		var left_sample = int(clampf(left, -0.32, 0.32) * 32767.0)
+		var right_sample = int(clampf(right, -0.32, 0.32) * 32767.0)
+		var offset = i * 4
+		data.encode_s16(offset, left_sample)
+		data.encode_s16(offset + 2, right_sample)
+
 	audio_stream.data = data
 	audio_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	audio_stream.loop_begin = 0
 	audio_stream.loop_end = sample_count
-	
+
 	return audio_stream
+
+
+static func _loop_safe_frequency(frequency: float, duration: float) -> float:
+	return round(frequency * duration) / duration

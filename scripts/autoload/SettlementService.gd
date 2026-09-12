@@ -96,6 +96,7 @@ func apply_victory_settlement(settlement: Dictionary) -> void:
 		settlement["flower_language_reward"] = fragment_reward
 
 	DailyService.record_event(DailyService.TASK_PLAY_LEVEL)
+	MetaUnlockService.refresh_eligibility()
 	GameManager.complete_level(int(settlement.get("stars_earned", 1)), int(settlement.get("score", 0)))
 
 
@@ -163,6 +164,7 @@ func apply_failure_settlement(settlement: Dictionary) -> void:
 		settlement["flower_language_reward"] = fragment_reward
 
 	DailyService.record_event(DailyService.TASK_PLAY_LEVEL)
+	MetaUnlockService.record_behavior(MetaUnlockService.BEHAVIOR_LEVEL_FAILED)
 
 
 func try_continue_level(level_system: LevelSystem, continue_cost: int = DEFAULT_CONTINUE_COST, extra_moves: int = DEFAULT_CONTINUE_MOVES) -> bool:
