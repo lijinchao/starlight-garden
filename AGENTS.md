@@ -248,5 +248,3 @@ Agent 在执行任务时，应尽量做到：
 - 本地回归入口 `./run_harness.sh` 会先运行漂移检查，再执行 Godot 检查与测试。
 
 如果后续需要切换工作方式，应先更新本文件（`AGENTS.delta.md`），而不是生成物 `AGENTS.md`。
-
-<!-- deliberate drift proof: remove after the run -->
