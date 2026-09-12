@@ -190,9 +190,9 @@ func test_level_system() -> void:
 
 ### 添加新的测试用例
 
-1. 在 `tests/TestRunner.gd` 中添加测试函数
-2. 在 `run_all_tests()` 中调用新测试
-3. 使用断言方法验证结果
+1. 在 `tests/suites/` 下对应领域的套件脚本中添加 `test_*` 函数（例如 `board_suite.gd`）
+2. 在 `tests/TestRunner.gd` 的 `SUITE_TESTS` 中登记套件脚本与函数名
+3. 使用断言方法验证结果；断言由 `tests/suites/test_suite.gd` 基类代理到 TestRunner
 
 ### 断言方法
 
