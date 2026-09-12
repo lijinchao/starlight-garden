@@ -1,7 +1,12 @@
 {
   "version": "0.1.0",
+  "tool": {
+    "version": "0.1.0"
+  },
   "base": {
-    "source": "../coding-harness/dist"
+    "source": "git:https://github.com/lijinchao/coding-harness.git",
+    "registry": "dist",
+    "cache": ".harness"
   },
   "compositions": [
     {
@@ -43,6 +48,9 @@
   ],
   "lock": {
     "version": "0.1.0",
+    "tool": {
+      "version": "0.1.0"
+    },
     "outputs": {
       "AGENTS.md": "a4901d384e89d67a2063728ccfd2d8f6a28abf895f5ab43315243f2a374b175d",
       "REVIEW.md": "63963d3839b7266410a1bf5ef12ed6aca57a24b505250be949c8bca826c2611b"
