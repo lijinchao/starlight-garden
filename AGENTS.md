@@ -22,7 +22,7 @@ Everything above this file comes from the shared coding-harness base. This file 
 
 > **本文件是生成源。** 仓库根目录的 `AGENTS.md` 由共享 base 与本文件合成；`REVIEW.md` 由共享 base 生成。
 > 要修改它们，编辑本文件或 `harness.manifest.json`，再运行：
-> `node ../coding-harness/bin/harness.mjs sync --manifest harness.manifest.json`。
+> `./harness sync --manifest harness.manifest.json`。
 > 直接手改 `AGENTS.md` / `REVIEW.md` 会被 `harness check` 判为 drift。
 >
 > 本仓库的真实命令见下方"命令"一节。
@@ -34,7 +34,7 @@ Everything above this file comes from the shared coding-harness base. This file 
 - 完整回归：`./run_harness.sh`（需要 `GODOT_BIN` 指向 Godot 4.3+；会先跑 coding-harness 漂移检查）
 - 自动化测试：`./run_tests.sh`
 - 结构与目标检查：`godot --headless --path . --script res://scripts/tools/harness_check.gd`
-- Harness 漂移检查：`node ../coding-harness/bin/harness.mjs check --manifest harness.manifest.json`
+- Harness 漂移检查：`./harness check --manifest harness.manifest.json`
 
 运行后请把输出贴出来。
 
@@ -246,8 +246,8 @@ Agent 在执行任务时，应尽量做到：
 
 本仓库还接入共享 coding-harness 基座（见 `harness.manifest.json`）：
 
-- 漂移检查：`node ../coding-harness/bin/harness.mjs check --manifest harness.manifest.json`
-- 重新合成：`node ../coding-harness/bin/harness.mjs sync --manifest harness.manifest.json`
+- 漂移检查：`./harness check --manifest harness.manifest.json`
+- 重新合成：`./harness sync --manifest harness.manifest.json`
 - 本地回归入口 `./run_harness.sh` 会先运行漂移检查，再执行 Godot 检查与测试。
 
 如果后续需要切换工作方式，应先更新本文件（`AGENTS.delta.md`），而不是生成物 `AGENTS.md`。
