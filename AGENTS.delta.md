@@ -7,7 +7,18 @@ Everything above this file comes from the shared coding-harness base. This file 
 > `node ../coding-harness/bin/harness.mjs sync --manifest harness.manifest.json`。
 > 直接手改 `AGENTS.md` / `REVIEW.md` 会被 `harness check` 判为 drift。
 >
-> 共享 base 顶部的 `make build` / `make test` / `make lint` 是通用占位符，本仓库不适用；本仓库的真实命令见第 9 节。
+> 本仓库的真实命令见下方"命令"一节。
+
+## 命令（本仓库）
+
+本仓库是 Godot 4.3+ 项目，不使用 `make`。交付前运行：
+
+- 完整回归：`./run_harness.sh`（需要 `GODOT_BIN` 指向 Godot 4.3+；会先跑 coding-harness 漂移检查）
+- 自动化测试：`./run_tests.sh`
+- 结构与目标检查：`godot --headless --path . --script res://scripts/tools/harness_check.gd`
+- Harness 漂移检查：`node ../coding-harness/bin/harness.mjs check --manifest harness.manifest.json`
+
+运行后请把输出贴出来。
 
 本文件定义本仓库中使用 CODEX / AI Agent 进行开发时必须遵循的工作约定。
 

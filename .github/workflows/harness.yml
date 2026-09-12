@@ -1,11 +1,11 @@
-# M1/M2 drift gate for starlight-garden.
-# The base is a versioned release (M2): the job checks out coding-harness, builds the
-# pinned release, then verifies the consumer against it. M5 will fetch the release
-# instead of building it from a checkout.
+# Drift gate for starlight-garden.
+# The base is a versioned release fetched from git at tag v<version> (M2); the tool is
+# checked out at the same tag and its version is pinned in harness.manifest.json.
 name: harness
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -13,21 +13,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out this repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: starlight-garden
-      - name: Check out the coding-harness tool
-        uses: actions/checkout@v4
+      - name: Read the pinned base version
+        working-directory: starlight-garden
+        run: echo "BASE_VERSION=$(node --eval 'console.log(require("./harness.manifest.json").version)')" >> "$GITHUB_ENV"
+      - name: Check out the coding-harness tool at the pinned version
+        uses: actions/checkout@v5
         with:
           repository: ${{ github.repository_owner }}/coding-harness
           path: coding-harness
+          ref: v${{ env.BASE_VERSION }}
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20.11'
-      - name: Release the pinned base
-        working-directory: coding-harness
-        run: node bin/harness.mjs release --base base --out dist
+          node-version: '22'
       - name: Fail on harness drift
         working-directory: starlight-garden
         run: node ../coding-harness/bin/harness.mjs check --manifest harness.manifest.json
