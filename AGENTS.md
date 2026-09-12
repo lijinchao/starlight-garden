@@ -1,19 +1,11 @@
 # Shared harness base
 
-This file is composed into a repository's `AGENTS.md` above the repository delta. Edit the base in the shared harness repository, never in a consuming repository.
-
-## Commands
-
-- Build: `make build` — must end with `Build succeeded`.
-- Test: `make test` — all green; never delete or skip a failing test.
-- Lint: `make lint` — zero warnings.
-
-Run all three before reporting any task complete, and paste the output.
+The rules below are shared by every repository that pins this base. The repository's own commands and local rules are declared in the delta that follows.
 
 ## Conventions
 
 - One change, one plan: commit a plan before implementation, and update it in the same commit when the implementation departs from it.
-- A rule that must always hold belongs in a gate, not in this file.
+- A rule that must always hold belongs in a gate, not in a guide.
 - When the same mistake happens twice, the correction goes into this base or the repository delta, not only into the code.
 - State a target that can be checked without asking, for example: "the endpoint returns 200 with the new field".
 
@@ -33,7 +25,18 @@ Everything above this file comes from the shared coding-harness base. This file 
 > `node ../coding-harness/bin/harness.mjs sync --manifest harness.manifest.json`。
 > 直接手改 `AGENTS.md` / `REVIEW.md` 会被 `harness check` 判为 drift。
 >
-> 共享 base 顶部的 `make build` / `make test` / `make lint` 是通用占位符，本仓库不适用；本仓库的真实命令见第 9 节。
+> 本仓库的真实命令见下方"命令"一节。
+
+## 命令（本仓库）
+
+本仓库是 Godot 4.3+ 项目，不使用 `make`。交付前运行：
+
+- 完整回归：`./run_harness.sh`（需要 `GODOT_BIN` 指向 Godot 4.3+；会先跑 coding-harness 漂移检查）
+- 自动化测试：`./run_tests.sh`
+- 结构与目标检查：`godot --headless --path . --script res://scripts/tools/harness_check.gd`
+- Harness 漂移检查：`node ../coding-harness/bin/harness.mjs check --manifest harness.manifest.json`
+
+运行后请把输出贴出来。
 
 本文件定义本仓库中使用 CODEX / AI Agent 进行开发时必须遵循的工作约定。
 
