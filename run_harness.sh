@@ -23,15 +23,19 @@ echo "Godot: $GODOT_BIN"
 echo "Project: $PROJECT_DIR"
 echo ""
 
-echo "1/3 导入新增项目资源"
+echo "0/4 coding-harness 漂移检查"
+node "$PROJECT_DIR/../coding-harness/bin/harness.mjs" check --manifest "$PROJECT_DIR/harness.manifest.json"
+echo ""
+
+echo "1/4 导入新增项目资源"
 "$GODOT_BIN" --headless --editor --path "$PROJECT_DIR" --quit
 
 echo ""
-echo "2/3 运行 Harness 结构与目标检查"
+echo "2/4 运行 Harness 结构与目标检查"
 "$GODOT_BIN" --headless --path "$PROJECT_DIR" --script "res://scripts/tools/harness_check.gd"
 
 echo ""
-echo "3/3 运行 Godot 自动化测试"
+echo "3/4 运行 Godot 自动化测试"
 "$PROJECT_DIR/run_tests.sh"
 
 echo ""
