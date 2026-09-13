@@ -24,3 +24,6 @@ export/
 
 # coding-harness base cache
 .harness/
+
+# Godot regenerates script UIDs; the suites are preloaded by path
+tests/suites/*.gd.uid
