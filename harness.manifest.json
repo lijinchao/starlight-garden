@@ -175,7 +175,9 @@
       "AGENTS.md",
       "AGENTS.delta.md"
     ],
-    "postmortems": "docs/postmortems"
+    "postmortems": "docs/postmortems",
+    "decisions": "docs/decisions",
+    "manualVerification": "docs/MANUAL_VERIFICATION.md"
   },
   "lock": {
     "version": "0.1.39",
