@@ -19,6 +19,9 @@ var combo_count: int = 0
 var available_types: Array = []
 var garden_layers: Dictionary = {}
 var dew_buds: Dictionary = {}
+var special_grid: Array = []
+var blocker_cells: Dictionary = {}
+var blocker_hp: Dictionary = {}
 var preferred_direction: String = ""
 var random_generator := RandomNumberGenerator.new()
 
@@ -31,13 +34,19 @@ func _ready() -> void:
 # ==================== 初始化 ====================
 func initialize_grid(level_config: Dictionary = {}) -> void:
 	grid.clear()
+	special_grid.clear()
 
 	configure(level_config)
 	
 	for row in range(Constants.GRID_ROWS):
 		grid.append([])
+		special_grid.append([])
 		for col in range(Constants.GRID_COLS):
 			grid[row].append(_get_random_tile_no_match(row, col))
+			special_grid[row].append("")
+	
+	for blocker_pos in blocker_cells.keys():
+		grid[blocker_pos.x][blocker_pos.y] = Constants.TileType.BLOCKER
 	
 	while find_all_matches().size() > 0:
 		shuffle_board()
@@ -69,6 +78,14 @@ func configure(level_config: Dictionary = {}) -> void:
 			var bud_pos = Vector2i(int(raw_bud[0]), int(raw_bud[1]))
 			if garden_layers.has(bud_pos):
 				dew_buds[bud_pos] = true
+	blocker_cells.clear()
+	blocker_hp.clear()
+	for raw_blocker in level_config.get("target", {}).get("blockers", []):
+		if raw_blocker is Array and raw_blocker.size() >= 2:
+			var blocker_pos = Vector2i(int(raw_blocker[0]), int(raw_blocker[1]))
+			if _is_valid_position(blocker_pos):
+				blocker_cells[blocker_pos] = true
+				blocker_hp[blocker_pos] = 2
 
 
 func _get_default_types() -> Array:
@@ -165,6 +182,9 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 	if not is_adjacent(pos1, pos2):
 		return {"matched": false, "reverted": false, "chains": []}
 
+	if grid[pos1.x][pos1.y] == Constants.TileType.BLOCKER or grid[pos2.x][pos2.y] == Constants.TileType.BLOCKER:
+		return {"matched": false, "reverted": false, "chains": []}
+
 	swap_tiles(pos1, pos2)
 	tiles_swapped.emit(pos1, pos2)
 
@@ -175,33 +195,14 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 
 	var chains = []
 	var chain_count = 0
+	# 同一次交换内，同一石块最多被敲一次
+	var damaged_this_action: Dictionary = {}
 
 	while not matches.is_empty() and chain_count < MAX_CASCADE_CHAINS:
 		chain_count += 1
 		chain_triggered.emit(chain_count)
 
-		var chain_matches = matches.duplicate(true)
-		for match_data in chain_matches:
-			tiles_matched.emit(match_data["positions"], match_data["type"])
-
-		remove_matched_tiles(chain_matches)
-		var fall_result = _drop_and_fill_collect()
-		var awakening_matches = []
-		for match_data in chain_matches:
-			if not _get_breeze_paths(match_data.get("positions", [])).is_empty():
-				awakening_matches.append(match_data)
-		var garden_result = _resolve_garden_layers(chain_matches, awakening_matches)
-
-		chains.append({
-			"matches": chain_matches,
-			"awakening_count": awakening_matches.size(),
-			"awakening_matches": awakening_matches,
-			"garden_cleared": garden_result.get("cleared", []),
-			"dew_bursts": garden_result.get("dew_bursts", []),
-			"breeze_paths": garden_result.get("paths", []),
-			"movements": fall_result["movements"],
-			"new_tiles": fall_result["new_tiles"]
-		})
+		chains.append(_resolve_chain_step(matches.duplicate(true), damaged_this_action))
 
 		matches = find_all_matches()
 
@@ -218,6 +219,56 @@ func resolve_swap(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 	}
 
 
+# 统一的一段连锁结算：匹配 → 生成清风块 → 触发 → 敲石块 → 清落叶 → 掉落补牌
+func _resolve_chain_step(chain_matches: Array, damaged_this_action: Dictionary = {}) -> Dictionary:
+	for match_data in chain_matches:
+		tiles_matched.emit(match_data["positions"], match_data["type"])
+
+	var specials_created = _create_specials(chain_matches)
+	var anchor_positions: Array = []
+	for created in specials_created:
+		anchor_positions.append(created["position"])
+	var triggered_specials = _collect_triggered_specials(chain_matches, anchor_positions)
+	remove_matched_tiles(chain_matches, anchor_positions)
+	var blocker_result = _resolve_blockers(chain_matches, damaged_this_action)
+	var blockers_broken: Array = (blocker_result.get("broken", []) as Array).duplicate()
+	var blockers_damaged: Array = (blocker_result.get("damaged", []) as Array).duplicate()
+
+	var special_result = _apply_specials(triggered_specials)
+	var special_cleared: Array = special_result.get("cleared", [])
+	for special_broken in special_result.get("blockers_broken", []):
+		if not blockers_broken.has(special_broken):
+			blockers_broken.append(special_broken)
+
+	var cleared_positions: Array = []
+	for match_data in chain_matches:
+		for match_pos in match_data.get("positions", []):
+			if not anchor_positions.has(match_pos):
+				cleared_positions.append(match_pos)
+	for special_pos in special_cleared:
+		cleared_positions.append(special_pos)
+	for broken_pos in blockers_broken:
+		cleared_positions.append(broken_pos)
+
+	var garden_result = _resolve_garden_layers(cleared_positions)
+	var fall_result = _drop_and_fill_collect()
+	return {
+		"matches": chain_matches,
+		"specials_created": specials_created,
+		"specials_triggered": triggered_specials,
+		"special_cleared": special_cleared,
+		"blockers_broken": blockers_broken,
+		"blockers_damaged": blockers_damaged,
+		"awakening_count": 0,
+		"awakening_matches": [],
+		"garden_cleared": garden_result.get("cleared", []),
+		"dew_bursts": garden_result.get("dew_bursts", []),
+		"breeze_paths": [],
+		"movements": fall_result["movements"],
+		"new_tiles": fall_result["new_tiles"]
+	}
+
+
 func get_garden_layer_positions() -> Array:
 	return garden_layers.keys()
 
@@ -226,27 +277,132 @@ func get_dew_bud_positions() -> Array:
 	return dew_buds.keys()
 
 
-func _resolve_garden_layers(matches: Array, awakening_matches: Array) -> Dictionary:
+func get_special_grid() -> Array:
+	return special_grid
+
+
+func get_blocker_positions() -> Array:
+	return blocker_cells.keys()
+
+
+func get_blocker_hp(pos: Vector2i) -> int:
+	return int(blocker_hp.get(pos, 0))
+
+
+func get_blocker_hp_map() -> Dictionary:
+	return blocker_hp.duplicate()
+
+
+func _is_matchable(tile_type: int) -> bool:
+	return tile_type != Constants.TileType.NONE and tile_type != Constants.TileType.BLOCKER
+
+
+# 与石块相邻的消除会敲裂它；两次才碎
+func _resolve_blockers(matches: Array, damaged_this_action: Dictionary = {}) -> Dictionary:
+	var hit: Dictionary = {}
+	for match_data in matches:
+		for match_pos in match_data.get("positions", []):
+			for offset in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				var candidate: Vector2i = match_pos + offset
+				if not _is_valid_position(candidate):
+					continue
+				if grid[candidate.x][candidate.y] != Constants.TileType.BLOCKER:
+					continue
+				# 同一次移动内已敲过的石块不再重复结算：连锁掉落重新凑成的消除不能重复敲同一块
+				if damaged_this_action.has(candidate):
+					continue
+				hit[candidate] = true
+	var broken: Array = []
+	var damaged: Array = []
+	for candidate in hit.keys():
+		damaged_this_action[candidate] = true
+		var hp = int(blocker_hp.get(candidate, 2))
+		# 相邻消除只能把石块敲到“裂开”（最低 1 点耐久），永远敲不碎；只有清风能击碎
+		if hp > 1:
+			blocker_hp[candidate] = hp - 1
+			damaged.append(candidate)
+	return {"broken": broken, "damaged": damaged}
+
+
+func get_special_at(pos: Vector2i) -> String:
+	if _is_valid_position(pos) and pos.x < special_grid.size() and pos.y < special_grid[pos.x].size():
+		return str(special_grid[pos.x][pos.y])
+	return ""
+
+
+# 主动触发：玩家点一下清风块即可发动，不消耗步数
+func activate_special(pos: Vector2i) -> Dictionary:
+	if not _is_valid_position(pos):
+		return {"matched": false, "reverted": false, "chains": []}
+	var direction = get_special_at(pos)
+	if direction.is_empty():
+		return {"matched": false, "reverted": false, "chains": []}
+
+	special_grid[pos.x][pos.y] = ""
+	grid[pos.x][pos.y] = Constants.TileType.NONE
+	var triggered: Array = [{"position": pos, "direction": direction}]
+	var special_result = _apply_specials(triggered)
+	var special_cleared: Array = special_result.get("cleared", [])
+	var activation_broken: Array = (special_result.get("blockers_broken", []) as Array).duplicate()
+
+	var cleared_positions: Array = [pos]
+	for special_pos in special_cleared:
+		cleared_positions.append(special_pos)
+	for broken_pos in activation_broken:
+		cleared_positions.append(broken_pos)
+	var garden_result = _resolve_garden_layers(cleared_positions)
+	var fall_result = _drop_and_fill_collect()
+
+	var chains: Array = [{
+		"matches": [],
+		"specials_created": [],
+		"specials_triggered": triggered,
+		"special_cleared": special_cleared,
+		"blockers_broken": activation_broken,
+		"blockers_damaged": [],
+		"awakening_count": 0,
+		"awakening_matches": [],
+		"garden_cleared": garden_result.get("cleared", []),
+		"dew_bursts": garden_result.get("dew_bursts", []),
+		"breeze_paths": [],
+		"movements": fall_result["movements"],
+		"new_tiles": fall_result["new_tiles"]
+	}]
+
+	# 触发后的掉落补牌可能重新凑成三连：与 resolve_swap 一样继续连锁结算
+	var matches = find_all_matches()
+	var chain_count = 0
+	# 同一次清风触发内，同一石块最多被敲一次
+	var damaged_this_action: Dictionary = {}
+	while not matches.is_empty() and chain_count < MAX_CASCADE_CHAINS:
+		chain_count += 1
+		chain_triggered.emit(chain_count)
+		chains.append(_resolve_chain_step(matches.duplicate(true), damaged_this_action))
+		matches = find_all_matches()
+
+	var chain_capped = not matches.is_empty()
+	if chain_capped:
+		_rebuild_stable_grid()
+
+	board_updated.emit()
+	return {
+		"matched": true,
+		"reverted": false,
+		"chain_capped": chain_capped,
+		"chains": chains
+	}
+
+
+func _resolve_garden_layers(cleared_positions: Array) -> Dictionary:
 	if garden_layers.is_empty():
 		return {"cleared": [], "paths": [], "dew_bursts": []}
 
 	var clear_candidates: Dictionary = {}
-	for match_data in matches:
-		for match_pos in match_data.get("positions", []):
-			for offset in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-				var candidate = match_pos + offset
-				if garden_layers.has(candidate):
-					clear_candidates[candidate] = true
-
-	var paths: Array = []
-	for match_data in awakening_matches:
-		for path in _get_breeze_paths(match_data.get("positions", [])):
-			paths.append(path)
-			for layer_pos in garden_layers.keys():
-				if path.get("direction") == "horizontal" and layer_pos.x == int(path.get("index", -1)):
-					clear_candidates[layer_pos] = true
-				elif path.get("direction") == "vertical" and layer_pos.y == int(path.get("index", -1)):
-					clear_candidates[layer_pos] = true
+	for cleared_pos in cleared_positions:
+		for offset in [Vector2i.ZERO, Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var candidate: Vector2i = cleared_pos + offset
+			if garden_layers.has(candidate):
+				clear_candidates[candidate] = true
 
 	var dew_bursts: Array = []
 	var pending_buds: Array = []
@@ -260,7 +416,7 @@ func _resolve_garden_layers(matches: Array, awakening_matches: Array) -> Diction
 			continue
 		dew_buds.erase(bud_pos)
 		var burst_cleared: Array = []
-		var burst_distance = 2 if _has_preferred_breeze(paths) else 1
+		var burst_distance = 2 if not preferred_direction.is_empty() else 1
 		for offset in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 			for distance in range(1, burst_distance + 1):
 				var candidate = bud_pos + offset * distance
@@ -279,7 +435,106 @@ func _resolve_garden_layers(matches: Array, awakening_matches: Array) -> Diction
 	var cleared: Array = clear_candidates.keys()
 	for pos in cleared:
 		garden_layers.erase(pos)
-	return {"cleared": cleared, "paths": paths, "dew_bursts": dew_bursts}
+	return {"cleared": cleared, "paths": [], "dew_bursts": dew_bursts}
+
+
+# ==================== 清风特殊块 ====================
+func _infer_direction(positions: Array) -> String:
+	if positions.size() < 2:
+		return ""
+	var same_row = true
+	var same_col = true
+	var first: Vector2i = positions[0]
+	for pos in positions:
+		if pos.x != first.x:
+			same_row = false
+		if pos.y != first.y:
+			same_col = false
+	if same_row:
+		return "row"
+	if same_col:
+		return "col"
+	return ""
+
+
+func _create_specials(chain_matches: Array) -> Array:
+	var created: Array = []
+	for match_data in chain_matches:
+		var positions: Array = match_data.get("positions", [])
+		if positions.size() < 4:
+			continue
+		var direction = _infer_direction(positions)
+		if direction.is_empty():
+			continue
+		# 选一个还没有清风块的位置当锚点，避免覆盖掉已经攒下的块
+		var anchor: Vector2i = Vector2i(-1, -1)
+		var middle = int(positions.size() / 2)
+		for offset in range(positions.size()):
+			var candidate: Vector2i = positions[(middle + offset) % positions.size()]
+			if str(special_grid[candidate.x][candidate.y]).is_empty():
+				anchor = candidate
+				break
+		if anchor == Vector2i(-1, -1):
+			continue
+		special_grid[anchor.x][anchor.y] = direction
+		created.append({
+			"position": anchor,
+			"direction": direction,
+			"type": int(match_data.get("type", Constants.TileType.NONE))
+		})
+	return created
+
+
+func _collect_triggered_specials(chain_matches: Array, anchor_positions: Array) -> Array:
+	var triggered: Array = []
+	for match_data in chain_matches:
+		for match_pos in match_data.get("positions", []):
+			if anchor_positions.has(match_pos):
+				continue
+			var direction = str(special_grid[match_pos.x][match_pos.y])
+			if direction.is_empty():
+				continue
+			triggered.append({"position": match_pos, "direction": direction})
+			special_grid[match_pos.x][match_pos.y] = ""
+	return triggered
+
+
+func _apply_specials(triggered: Array) -> Dictionary:
+	var cleared: Array = []
+	var blockers_broken: Array = []
+	var processed: Dictionary = {}
+	var queue: Array = triggered.duplicate()
+	while not queue.is_empty():
+		var item: Dictionary = queue.pop_front()
+		var origin: Vector2i = item.get("position", Vector2i(-1, -1))
+		var direction = str(item.get("direction", ""))
+		var key = "%d:%d:%s" % [origin.x, origin.y, direction]
+		if processed.has(key):
+			continue
+		processed[key] = true
+		var line: Array = []
+		if direction == "row":
+			for col in range(Constants.GRID_COLS):
+				line.append(Vector2i(origin.x, col))
+		else:
+			for row in range(Constants.GRID_ROWS):
+				line.append(Vector2i(row, origin.y))
+		for pos in line:
+			if not _is_valid_position(pos):
+				continue
+			if grid[pos.x][pos.y] == Constants.TileType.NONE:
+				continue
+			var nested = str(special_grid[pos.x][pos.y])
+			if not nested.is_empty():
+				queue.append({"position": pos, "direction": nested})
+				special_grid[pos.x][pos.y] = ""
+			if grid[pos.x][pos.y] == Constants.TileType.BLOCKER:
+				blocker_cells.erase(pos)
+				blocker_hp.erase(pos)
+				blockers_broken.append(pos)
+			grid[pos.x][pos.y] = Constants.TileType.NONE
+			cleared.append(pos)
+	return {"cleared": cleared, "blockers_broken": blockers_broken}
 
 
 func _has_preferred_breeze(paths: Array) -> bool:
@@ -334,10 +589,10 @@ func _find_horizontal_matches() -> Array:
 		for col in range(1, Constants.GRID_COLS):
 			if col >= grid[row].size():
 				break
-			if grid[row][col] == current_type and current_type != Constants.TileType.NONE:
+			if grid[row][col] == current_type and _is_matchable(current_type):
 				count += 1
 			else:
-				if count >= Constants.MIN_MATCH_COUNT and current_type != Constants.TileType.NONE:
+				if count >= Constants.MIN_MATCH_COUNT and _is_matchable(current_type):
 					var positions = []
 					for i in range(count):
 						positions.append(Vector2i(row, col - count + i))
@@ -350,7 +605,7 @@ func _find_horizontal_matches() -> Array:
 				current_type = grid[row][col]
 		
 		# 检查行尾
-		if count >= Constants.MIN_MATCH_COUNT and current_type != Constants.TileType.NONE:
+		if count >= Constants.MIN_MATCH_COUNT and _is_matchable(current_type):
 			var positions = []
 			for i in range(count):
 				positions.append(Vector2i(row, Constants.GRID_COLS - count + i))
@@ -381,10 +636,10 @@ func _find_vertical_matches() -> Array:
 		for row in range(1, Constants.GRID_ROWS):
 			if row >= grid.size() or col >= grid[row].size():
 				break
-			if grid[row][col] == current_type and current_type != Constants.TileType.NONE:
+			if grid[row][col] == current_type and _is_matchable(current_type):
 				count += 1
 			else:
-				if count >= Constants.MIN_MATCH_COUNT and current_type != Constants.TileType.NONE:
+				if count >= Constants.MIN_MATCH_COUNT and _is_matchable(current_type):
 					var positions = []
 					for i in range(count):
 						positions.append(Vector2i(row - count + i, col))
@@ -397,7 +652,7 @@ func _find_vertical_matches() -> Array:
 				current_type = grid[row][col]
 		
 		# 检查列尾
-		if count >= Constants.MIN_MATCH_COUNT and current_type != Constants.TileType.NONE:
+		if count >= Constants.MIN_MATCH_COUNT and _is_matchable(current_type):
 			var positions = []
 			for i in range(count):
 				positions.append(Vector2i(Constants.GRID_ROWS - count + i, col))
@@ -441,10 +696,15 @@ func _positions_overlap(first: Array, second: Array) -> bool:
 
 func _rebuild_stable_grid() -> void:
 	grid.clear()
+	special_grid.clear()
 	for row in range(Constants.GRID_ROWS):
 		grid.append([])
+		special_grid.append([])
 		for col in range(Constants.GRID_COLS):
 			grid[row].append(_get_random_tile_no_match(row, col))
+			special_grid[row].append("")
+	for blocker_pos in blocker_cells.keys():
+		grid[blocker_pos.x][blocker_pos.y] = Constants.TileType.BLOCKER
 	while not has_valid_moves():
 		shuffle_board()
 
@@ -484,29 +744,18 @@ func _process_matches(matches: Array) -> void:
 	combo_count = 0
 
 # 移除匹配的元素
-func remove_matched_tiles(matches: Array) -> void:
+func remove_matched_tiles(matches: Array, skip_positions: Array = []) -> void:
 	for match_data in matches:
 		for pos in match_data["positions"]:
+			if skip_positions.has(pos):
+				continue
 			grid[pos.x][pos.y] = Constants.TileType.NONE
+			if pos.x < special_grid.size() and pos.y < special_grid[pos.x].size():
+				special_grid[pos.x][pos.y] = ""
 
 # 下落和填充
 func _drop_and_fill() -> void:
-	# 下落现有元素
-	for col in range(Constants.GRID_COLS):
-		var empty_row = Constants.GRID_ROWS - 1
-		
-		for row in range(Constants.GRID_ROWS - 1, -1, -1):
-			if grid[row][col] != Constants.TileType.NONE:
-				if row != empty_row:
-					grid[empty_row][col] = grid[row][col]
-					grid[row][col] = Constants.TileType.NONE
-				empty_row -= 1
-		
-		# 填充新元素
-		for row in range(empty_row, -1, -1):
-			grid[row][col] = get_random_basic_tile()
-	
-	tiles_fallen.emit()
+	_drop_and_fill_collect()
 	await AsyncUtilsScript.create_delay_tween(self, Constants.FALL_DURATION).finished
 
 # ==================== 辅助函数 ====================
@@ -559,6 +808,8 @@ func find_valid_move() -> Dictionary:
 
 
 func _evaluate_potential_move(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
+	if grid[pos1.x][pos1.y] == Constants.TileType.BLOCKER or grid[pos2.x][pos2.y] == Constants.TileType.BLOCKER:
+		return {}
 	swap_tiles(pos1, pos2)
 	var matches = find_all_matches()
 	swap_tiles(pos1, pos2)
@@ -574,24 +825,24 @@ func _evaluate_potential_move(pos1: Vector2i, pos2: Vector2i) -> Dictionary:
 
 # 重新洗牌
 func shuffle_board() -> void:
-	var all_tiles = []
+	var positions: Array = []
+	var tiles: Array = []
 	for row in range(Constants.GRID_ROWS):
 		for col in range(Constants.GRID_COLS):
-			if grid[row][col] != Constants.TileType.NONE:
-				all_tiles.append(grid[row][col])
+			if grid[row][col] != Constants.TileType.NONE and grid[row][col] != Constants.TileType.BLOCKER:
+				positions.append(Vector2i(row, col))
+				tiles.append({"type": grid[row][col], "special": str(special_grid[row][col])})
 	
-	for index in range(all_tiles.size() - 1, 0, -1):
+	for index in range(tiles.size() - 1, 0, -1):
 		var swap_index = random_generator.randi_range(0, index)
-		var temporary = all_tiles[index]
-		all_tiles[index] = all_tiles[swap_index]
-		all_tiles[swap_index] = temporary
+		var temporary = tiles[index]
+		tiles[index] = tiles[swap_index]
+		tiles[swap_index] = temporary
 	
-	var index = 0
-	for row in range(Constants.GRID_ROWS):
-		for col in range(Constants.GRID_COLS):
-			if grid[row][col] != Constants.TileType.NONE:
-				grid[row][col] = all_tiles[index]
-				index += 1
+	for index in range(positions.size()):
+		var position: Vector2i = positions[index]
+		grid[position.x][position.y] = int(tiles[index]["type"])
+		special_grid[position.x][position.y] = str(tiles[index]["special"])
 	
 	# 确保没有初始匹配
 	while find_all_matches().size() > 0:
@@ -603,31 +854,42 @@ func _drop_and_fill_collect() -> Dictionary:
 	var new_tiles = []
 
 	for col in range(Constants.GRID_COLS):
-		var empty_row = Constants.GRID_ROWS - 1
-
-		for row in range(Constants.GRID_ROWS - 1, -1, -1):
-			if grid[row][col] != Constants.TileType.NONE:
-				if row != empty_row:
-					var tile_type = grid[row][col]
-					grid[empty_row][col] = tile_type
-					grid[row][col] = Constants.TileType.NONE
-
+		var row = Constants.GRID_ROWS - 1
+		while row >= 0:
+			if grid[row][col] == Constants.TileType.BLOCKER:
+				row -= 1
+				continue
+			var segment_bottom = row
+			var segment_top = row
+			while segment_top - 1 >= 0 and grid[segment_top - 1][col] != Constants.TileType.BLOCKER:
+				segment_top -= 1
+			var write_row = segment_bottom
+			for read_row in range(segment_bottom, segment_top - 1, -1):
+				var tile_type = grid[read_row][col]
+				if tile_type == Constants.TileType.NONE:
+					continue
+				if read_row != write_row:
+					var special_type = str(special_grid[read_row][col])
+					grid[write_row][col] = tile_type
+					special_grid[write_row][col] = special_type
+					grid[read_row][col] = Constants.TileType.NONE
+					special_grid[read_row][col] = ""
 					movements.append({
-						"from": Vector2i(row, col),
-						"to": Vector2i(empty_row, col),
-						"delay": (empty_row - row) * 0.05
+						"from": Vector2i(read_row, col),
+						"to": Vector2i(write_row, col),
+						"delay": (write_row - read_row) * 0.05
 					})
-
-				empty_row -= 1
-
-		for row in range(empty_row, -1, -1):
-			var new_type = get_random_basic_tile()
-			grid[row][col] = new_type
-			new_tiles.append({
-				"pos": Vector2i(row, col),
-				"type": new_type,
-				"delay": (empty_row - row) * 0.05
-			})
+				write_row -= 1
+			for fill_row in range(write_row, segment_top - 1, -1):
+				var new_type = get_random_basic_tile()
+				grid[fill_row][col] = new_type
+				special_grid[fill_row][col] = ""
+				new_tiles.append({
+					"pos": Vector2i(fill_row, col),
+					"type": new_type,
+					"delay": (write_row - fill_row) * 0.05
+				})
+			row = segment_top - 1
 
 	tiles_fallen.emit()
 	return {

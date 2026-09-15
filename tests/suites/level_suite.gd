@@ -52,6 +52,26 @@ func test_level_system() -> void:
 	level_system.free()
 
 
+func test_single_spatial_goal() -> void:
+	var level_system = LevelSystem.new()
+	add_child(level_system)
+
+	for level_id in range(6, 9):
+		var config = level_system.get_level_config(level_id)
+		var target = config.get("target", {})
+		var goal_type = str(target.get("type", ""))
+		assert_true(goal_type == "clear_blockers" or goal_type == "clear_leaves", "第%d关是单一空间目标" % level_id)
+		assert_true((target.get("requirements", []) as Array).is_empty(), "第%d关没有收集要求" % level_id)
+		# 步数不再用固定上限判断“紧张”；真正的紧张由 test_levels_require_a_plan 的探针校验。
+		assert_true(int(config.get("moves", 0)) <= 24, "第%d关步数设有上限" % level_id)
+
+	level_system.start_level(6)
+	assert_true(not level_system._check_win_condition(), "目标未完成时不能通关")
+	assert_true(level_system.get_target_progress_text().contains("石块"), "HUD 显示单一目标进度")
+	assert_true(not level_system.get_target_progress_text().contains("通关："), "HUD 不再显示收集数字")
+	level_system.free()
+
+
 func test_level_progression() -> void:
 	SaveManager.reset_save()
 	GameManager.start_level(4)
@@ -72,6 +92,94 @@ func test_level_progression() -> void:
 	controller.level_system.free()
 	controller.free()
 	SaveManager.reset_save()
+
+
+func test_garden_corner_growth() -> void:
+	var level_system = LevelSystem.new()
+	add_child(level_system)
+
+	level_system.start_level(2)
+	assert_equal(level_system.garden_corner_stage, 0, "开局花园角落处于第 0 阶段")
+	var requirement = level_system.level_config.get("target", {}).get("requirements", [])[0]
+	var target_key = str(int(requirement.get("tile_type", 0)))
+	var required_count = int(requirement.get("count", 0))
+	level_system.collected_tiles[target_key] = int(ceil(required_count / 3.0)) + 1
+	var growth = level_system.refresh_garden_corner()
+	assert_true(not growth.is_empty(), "有效消除推进会产出可读取的花园角落事件")
+	assert_true(int(growth.get("stage", 0)) >= 1, "收集推进到三分之一后花园角落进入可见阶段")
+	assert_equal(
+		str(growth.get("focus_name", "")),
+		str(level_system.get_theme_target_data().get("focus_name", "")),
+		"花园角落事件带上本局照料目标"
+	)
+	level_system.collected_tiles[target_key] = required_count
+	level_system.refresh_garden_corner()
+	assert_equal(level_system.garden_corner_stage, LevelSystem.GARDEN_CORNER_STAGES, "完成主目标后花园角落进入完成阶段")
+	assert_true(level_system.refresh_garden_corner().is_empty(), "同一阶段不重复发出推进事件")
+
+	level_system.start_level_config({
+		"level_id": 2,
+		"moves": 26,
+		"available_types": [1, 2, 3, 4],
+		"is_daily_challenge": true,
+		"target": {
+			"type": "collect",
+			"requirements": [{"tile_type": 1, "count": 9}],
+			"garden_layer": {"type": "fallen_leaves", "required": 3, "required_for_clear": true, "cells": [[2, 1], [2, 3], [2, 5]]}
+		},
+		"rewards": {"seed_type": 1, "seed_count": 0, "stars": 0, "first_clear_bonus": {"stars": 0, "seed_count": 0}}
+	})
+	level_system.collected_tiles["1"] = 9
+	level_system.refresh_garden_corner()
+	assert_equal(level_system.garden_corner_stage, 0, "必需落叶未扫时花园角落不进入完成阶段")
+	level_system.clear_garden_layers(3)
+	level_system.refresh_garden_corner()
+	assert_equal(level_system.garden_corner_stage, LevelSystem.GARDEN_CORNER_STAGES, "主目标与必需落叶都完成后花园角落进入完成阶段")
+	level_system.free()
+
+	var controller = SimpleGameController.new()
+	add_child(controller)
+	controller._start_level(1)
+	assert_true(controller.companion_panel == null, "迭代 P：普通关局内不再显示照料对象面板")
+	controller.free()
+
+
+func test_rhythm_escalation() -> void:
+	var level_system = LevelSystem.new()
+	add_child(level_system)
+
+	level_system.start_level(2)
+	assert_equal(level_system.rhythm_tier, 0, "开局情绪处于平静档")
+	var requirement = level_system.level_config.get("target", {}).get("requirements", [])[0]
+	var target_key = str(int(requirement.get("tile_type", 0)))
+	var required_count = int(requirement.get("count", 0))
+
+	var captured: Array = []
+	level_system.rhythm_changed.connect(func(payload: Dictionary) -> void: captured.append(payload))
+
+	level_system.collected_tiles[target_key] = int(ceil(required_count * 0.7))
+	var first_escalation = level_system.refresh_rhythm()
+	assert_true(not first_escalation.is_empty(), "接近目标触发分级升温事件")
+	assert_equal(int(first_escalation.get("tier", 0)), 1, "推进到七成时进入第一档")
+	assert_equal(captured.size(), 1, "分级升温同时发出信号")
+	assert_true(level_system.refresh_rhythm().is_empty(), "同一档不会重复升温")
+
+	level_system.collected_tiles[target_key] = int(ceil(required_count * 0.95))
+	var second_escalation = level_system.refresh_rhythm()
+	assert_equal(int(second_escalation.get("tier", 0)), 2, "接近完成时进入临门档")
+
+	level_system.start_level(2)
+	level_system.collected_tiles[target_key] = int(ceil(required_count * 0.5))
+	level_system.moves_left = 2
+	level_system.refresh_rhythm()
+	assert_true(level_system.rhythm_tier >= 1, "剩余步数偏低时也会升温")
+	level_system.free()
+
+	var controller = SimpleGameController.new()
+	add_child(controller)
+	controller._start_level(1)
+	assert_true(controller.has_method("_play_level_climax"), "控制器提供完成高潮反馈")
+	controller.free()
 
 
 func test_level_continue() -> void:

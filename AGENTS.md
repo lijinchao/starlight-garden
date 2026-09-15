@@ -57,7 +57,7 @@ Everything above this file comes from the shared coding-harness base. This file 
 3. [docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md](docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md)
 4. [docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md](docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md)
 5. 当前正在执行的迭代文档
-   默认优先看 [docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md](docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md)
+   默认优先看 [docs/ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md](docs/ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md)
 6. [docs/HARNESS_ENGINEERING.md](docs/HARNESS_ENGINEERING.md)
 7. 如果要新增后续迭代，使用 [docs/ITERATION_TEMPLATE.md](docs/ITERATION_TEMPLATE.md)
 
@@ -212,6 +212,16 @@ Everything above this file comes from the shared coding-harness base. This file 
 - 配置驱动行为测试
 
 不接受只做 UI 表现、不验证数据结果的交付。
+
+### 目标级测试先行（强制约束）
+
+1. 每个功能项在实现前，先写一个**目标级**验收测试：断言玩家可观察的结果（“点击清风块会触发”“失败后能重试同一关”），而不是实现细节。
+2. 先运行并确认它是**红的**，再写最小实现让它变绿。测试必须先于实现存在。
+3. 当前迭代文档必须包含 `## 验收测试映射` 表，把每个功能项映射到已注册、已实现的测试；`harness_check` 会机械校验，缺失或不存在的测试直接失败。
+4. 修复“实现与描述不一致”时，先补上能抓住该不一致的目标级测试，再修代码。
+5. 机器能查的用门禁（`harness_check` / `TestRunner`），只有无法机械判定的（例如“先红后绿”的顺序）才留在本约定里。
+
+**红→绿顺序无法机械验证，但“目标必须对应已注册测试”可以：这就是本约束落地为门禁的部分。**
 
 ---
 

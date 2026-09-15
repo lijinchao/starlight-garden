@@ -28,6 +28,9 @@ var restoration_hint_label: Label
 var restoration_preview_label: Label
 var restoration_goal_label: Label
 var restoration_focus_label: Label
+var restored_corners_label: Label
+var restored_corner_layer: Control
+var restored_corner_markers: Dictionary = {}
 var restoration_badges: HBoxContainer
 var background_rect: TextureRect
 var background_tint: ColorRect
@@ -68,6 +71,14 @@ const FLOWER_HOTSPOT_LAYOUT: Array[Dictionary] = [
 	{"position": Vector2(214, 650), "size": Vector2(132, 150)},
 	{"position": Vector2(430, 480), "size": Vector2(210, 190)},
 	{"position": Vector2(630, 570), "size": Vector2(112, 155)}
+]
+
+# 已恢复的具名角落落在花园上排的固定位置，一眼能看出“哪里被打通了”。
+const RESTORED_CORNER_LAYOUT: Array[Dictionary] = [
+	{"position": Vector2(30, 12), "size": Vector2(160, 118)},
+	{"position": Vector2(205, 12), "size": Vector2(160, 118)},
+	{"position": Vector2(380, 12), "size": Vector2(160, 118)},
+	{"position": Vector2(555, 12), "size": Vector2(160, 118)}
 ]
 
 const PRIMARY_DECORATION_CHOICES: Array[String] = [
@@ -206,6 +217,15 @@ func _create_ui() -> void:
 	restoration_focus_label.add_theme_color_override("font_color", Color(0.94, 0.96, 0.86))
 	restoration_summary.add_child(restoration_focus_label)
 
+	# 具名因果：把“这一局打通了哪一处”长期留在花园首屏。
+	restored_corners_label = Label.new()
+	restored_corners_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	restored_corners_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	restored_corners_label.custom_minimum_size = Vector2(620, 20)
+	restored_corners_label.add_theme_font_size_override("font_size", 14)
+	restored_corners_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.78))
+	restoration_summary.add_child(restored_corners_label)
+
 	restoration_goal_label = Label.new()
 	restoration_goal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	restoration_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -241,6 +261,13 @@ func _create_ui() -> void:
 		slot.position = layout.get("position", Vector2.ZERO)
 		slot.size = layout.get("size", Vector2(150, 150))
 		flower_slots.append(slot)
+
+	# 已恢复角落的可见标记层（在花位上方一排）。
+	restored_corner_layer = Control.new()
+	restored_corner_layer.name = "RestoredCorners"
+	restored_corner_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	restored_corner_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	garden_grid.add_child(restored_corner_layer)
 
 	# 装饰从商品列表改为底部二选一拖放托盘。
 	decoration_backdrop = ColorRect.new()
@@ -536,6 +563,7 @@ func _update_garden_display() -> void:
 
 	_update_inventory_display()
 	_update_decoration_display()
+	_update_restored_corner_markers()
 
 func _update_slot_display(slot: Control, data: Dictionary, _index: int) -> void:
 	# 获取VBoxContainer中的节点
@@ -714,6 +742,8 @@ func _update_decoration_display() -> void:
 		restoration_preview_label.text = str(restoration.get("preview", "🌿"))
 	if restoration_focus_label:
 		restoration_focus_label.text = "现在最明显的是：%s" % str(restoration.get("focus_title", "左侧空盆"))
+	if restored_corners_label:
+		restored_corners_label.text = _format_restored_corners_text()
 	if restoration_goal_label:
 		restoration_goal_label.text = str(restoration.get("next_goal", ""))
 	highlighted_restoration_slot = int(restoration.get("focus_slot", -1))
@@ -751,6 +781,82 @@ func _update_decoration_display() -> void:
 		choice_btn.button_down.connect(_begin_decoration_drag.bind(decoration_id))
 		decoration_list.add_child(choice_btn)
 		decoration_choice_buttons[decoration_id] = choice_btn
+
+
+func _format_restored_corners_text() -> String:
+	var names: Array = []
+	for corner in SaveManager.get_restored_corners():
+		var corner_name = str(corner.get("name", "")).strip_edges()
+		if not corner_name.is_empty():
+			names.append("「%s」" % corner_name)
+	if names.is_empty():
+		return "花园还没有点亮的角落"
+	return "已点亮 %d 处角落：%s" % [names.size(), " ".join(names)]
+
+
+# 已恢复的具名角落落在花园里的可见位置。
+func get_restored_corner_slot_position(level_id: int) -> Vector2:
+	var corners = SaveManager.get_restored_corners()
+	for index in range(mini(corners.size(), RESTORED_CORNER_LAYOUT.size())):
+		if int(corners[index].get("level_id", 0)) == level_id:
+			return RESTORED_CORNER_LAYOUT[index].get("position", Vector2.ZERO)
+	return Vector2.ZERO
+
+
+func _update_restored_corner_markers() -> void:
+	if restored_corner_layer == null:
+		return
+	for child in restored_corner_layer.get_children():
+		child.queue_free()
+	restored_corner_markers.clear()
+
+	var corners = SaveManager.get_restored_corners()
+	for index in range(mini(corners.size(), RESTORED_CORNER_LAYOUT.size())):
+		var corner: Dictionary = corners[index]
+		var level_id = int(corner.get("level_id", 0))
+		var layout: Dictionary = RESTORED_CORNER_LAYOUT[index]
+		var marker = _create_restored_corner_marker(corner)
+		marker.position = layout.get("position", Vector2.ZERO)
+		marker.size = layout.get("size", Vector2(160, 118))
+		restored_corner_layer.add_child(marker)
+		restored_corner_markers[level_id] = marker
+
+
+func _create_restored_corner_marker(corner: Dictionary) -> Control:
+	var marker = PanelContainer.new()
+	marker.name = "RestoredCorner_%d" % int(corner.get("level_id", 0))
+	var style = _create_surface_style(Color(0.98, 0.93, 0.62, 0.30))
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.border_color = Color(1.0, 0.92, 0.5, 0.85)
+	marker.add_theme_stylebox_override("panel", style)
+
+	var box = VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 2)
+	marker.add_child(box)
+
+	var flower_type = int(corner.get("flower_type", 0))
+	if flower_type > 0:
+		var texture = VisualAssetCatalogScript.get_tile_texture(flower_type)
+		if texture != null:
+			var icon = TextureRect.new()
+			icon.texture = texture
+			icon.custom_minimum_size = Vector2(46, 46)
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			box.add_child(icon)
+
+	var name_label = Label.new()
+	name_label.text = str(corner.get("name", "已恢复"))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_label.add_theme_font_size_override("font_size", 14)
+	name_label.add_theme_color_override("font_color", Color(0.18, 0.22, 0.14))
+	box.add_child(name_label)
+	return marker
 
 
 func _has_primary_decoration_choice() -> bool:

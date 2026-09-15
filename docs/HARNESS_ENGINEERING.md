@@ -30,7 +30,7 @@ Harness 工程的目标是把“产品方向正确、功能可验证、文档代
 
 1. `README.md`
 2. `docs/STATUS_AND_ITERATION_PLAN.md`
-3. 当前迭代文档，默认是 `docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md`
+3. 当前迭代文档，默认是 `docs/ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md`
 4. `docs/HARNESS_ENGINEERING.md`
 5. `docs/MANUAL_VERIFICATION_GUIDE.md`
 
@@ -56,6 +56,7 @@ Harness 工程的目标是把“产品方向正确、功能可验证、文档代
 - 20 个关卡配置均包含目标、可用元素、奖励、首通奖励。
 - 关卡奖励至少形成 3 个阶段，避免所有关卡掉落无差异。
 - `project.godot` 注册核心结算、经济、存档、合成、装饰服务。
+- 当前迭代文档包含 `## 验收测试映射`，且表中每个 `test_*` 都已注册在 `TestRunner` 并在 `tests/suites/` 中实现（目标级测试先行）。
 
 ### 3.4 自动化测试层
 

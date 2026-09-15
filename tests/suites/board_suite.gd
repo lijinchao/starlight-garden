@@ -52,7 +52,10 @@ func test_board_logic() -> void:
 	]
 	var turn_result = board.resolve_swap(Vector2i(0, 3), Vector2i(0, 4))
 	assert_true(turn_result.get("matched", false), "四连交换会形成有效消除")
-	assert_equal(int(turn_result.get("chains", [])[0].get("awakening_count", 0)), 1, "四连会触发一次清风唤醒")
+	var first_chain: Dictionary = turn_result.get("chains", [])[0]
+	assert_equal((first_chain.get("specials_created", []) as Array).size(), 1, "四连会生成一个清风块")
+	var created_special: Dictionary = first_chain.get("specials_created", [])[0]
+	assert_equal(str(created_special.get("direction", "")), "row", "横向四连生成横向清风块")
 	
 	board.free()
 
@@ -68,16 +71,16 @@ func test_breeze_path() -> void:
 		"type": 1,
 		"positions": [Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 4)]
 	}
-	var normal_clear = board._resolve_garden_layers([normal_match], [])
+	var normal_clear = board._resolve_garden_layers(normal_match["positions"])
 	assert_true(normal_clear.get("cleared", []).has(Vector2i(2, 3)), "普通三连会扫开上下左右相邻落叶")
 	assert_true(board.get_garden_layer_positions().has(Vector2i(0, 0)), "普通三连不会扫开远处落叶")
-	assert_true(normal_clear.get("paths", []).is_empty(), "普通三连不会生成整行清风路径")
 	var cross_only = [
 		Vector2i(2, 1), Vector2i(2, 2), Vector2i(2, 3),
 		Vector2i(1, 2), Vector2i(3, 2)
 	]
 	assert_true(board._get_breeze_paths(cross_only).is_empty(), "两个三连交叉不会误判为方向四连")
 
+	# 四连不再立即清线，而是生成留在盘面的清风块；触发时才清整行/整列
 	board.configure({
 		"available_types": [1, 2, 3],
 		"target": {"garden_layer": {"cells": [[1, 6], [5, 5]]}}
@@ -86,9 +89,13 @@ func test_breeze_path() -> void:
 		"type": 1,
 		"positions": [Vector2i(1, 0), Vector2i(1, 1), Vector2i(1, 2), Vector2i(1, 3)]
 	}
-	var horizontal_clear = board._resolve_garden_layers([horizontal_match], [horizontal_match])
-	assert_true(horizontal_clear.get("cleared", []).has(Vector2i(1, 6)), "横向四连会扫开同一行远处落叶")
-	assert_equal(horizontal_clear.get("paths", [])[0].get("direction"), "horizontal", "横向四连生成横向清风路径")
+	var horizontal_specials = board._create_specials([horizontal_match])
+	assert_equal(horizontal_specials.size(), 1, "横向四连生成一个清风块")
+	var horizontal_special_pos: Vector2i = horizontal_specials[0]["position"]
+	assert_equal(board.get_special_at(horizontal_special_pos), "row", "横向四连生成横向清风块")
+	var horizontal_cleared = board._apply_specials([{"position": horizontal_special_pos, "direction": "row"}]).get("cleared", [])
+	var horizontal_garden = board._resolve_garden_layers(horizontal_cleared)
+	assert_true(horizontal_garden.get("cleared", []).has(Vector2i(1, 6)), "触发横向清风块会扫开同一行远处落叶")
 	assert_true(board.get_garden_layer_positions().has(Vector2i(5, 5)), "横向清风不会误扫其他行")
 
 	board.configure({
@@ -99,9 +106,27 @@ func test_breeze_path() -> void:
 		"type": 2,
 		"positions": [Vector2i(0, 4), Vector2i(1, 4), Vector2i(2, 4), Vector2i(3, 4)]
 	}
-	var vertical_clear = board._resolve_garden_layers([vertical_match], [vertical_match])
-	assert_true(vertical_clear.get("cleared", []).has(Vector2i(6, 4)), "纵向四连会扫开同一列远处落叶")
-	assert_equal(vertical_clear.get("paths", [])[0].get("direction"), "vertical", "纵向四连生成纵向清风路径")
+	var vertical_specials = board._create_specials([vertical_match])
+	assert_equal(board.get_special_at(vertical_specials[0]["position"]), "col", "纵向四连生成纵向清风块")
+	var vertical_special_pos: Vector2i = vertical_specials[0]["position"]
+	var vertical_cleared = board._apply_specials([{"position": vertical_special_pos, "direction": "col"}]).get("cleared", [])
+	var vertical_garden = board._resolve_garden_layers(vertical_cleared)
+	assert_true(vertical_garden.get("cleared", []).has(Vector2i(6, 4)), "触发纵向清风块会扫开同一列远处落叶")
+
+	# 两个清风块一起触发形成十字清场
+	board.configure({"available_types": [1, 2, 3], "target": {}})
+	var cross_cleared = board._apply_specials([
+		{"position": Vector2i(0, 0), "direction": "row"},
+		{"position": Vector2i(3, 3), "direction": "col"}
+	]).get("cleared", [])
+	var has_row_cell = false
+	var has_col_cell = false
+	for pos in cross_cleared:
+		if pos.x == 0:
+			has_row_cell = true
+		if pos.y == 3:
+			has_col_cell = true
+	assert_true(has_row_cell and has_col_cell, "两个清风块一起触发形成十字清场")
 
 	board.configure({
 		"available_types": [1, 2, 3],
@@ -114,7 +139,7 @@ func test_breeze_path() -> void:
 		"type": 1,
 		"positions": [Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 4)]
 	}
-	var single_dew_clear = board._resolve_garden_layers([dew_match], [])
+	var single_dew_clear = board._resolve_garden_layers(dew_match["positions"])
 	assert_equal(single_dew_clear.get("dew_bursts", []).size(), 1, "扫开晨露花苞会触发一次绽放")
 	assert_true(single_dew_clear.get("cleared", []).has(Vector2i(1, 3)), "晨露花苞会额外扫开十字邻域落叶")
 	assert_true(board.get_garden_layer_positions().has(Vector2i(0, 0)), "晨露花苞不会误扫远处落叶")
@@ -126,7 +151,7 @@ func test_breeze_path() -> void:
 			"dew_buds": [[2, 3], [1, 3], [0, 3]]
 		}}
 	})
-	var chained_dew_clear = board._resolve_garden_layers([dew_match], [])
+	var chained_dew_clear = board._resolve_garden_layers(dew_match["positions"])
 	assert_equal(chained_dew_clear.get("dew_bursts", []).size(), 3, "晨露扩散命中下一枚花苞会继续连锁")
 	assert_equal(chained_dew_clear.get("dew_bursts", [])[2].get("chain_index", 0), 3, "晨露连锁按传播顺序编号")
 	assert_true(board.get_garden_layer_positions().has(Vector2i(6, 6)), "晨露连锁不会越过未连接的远处落叶")
@@ -142,7 +167,7 @@ func test_breeze_path() -> void:
 		"type": 1,
 		"positions": [Vector2i(1, 0), Vector2i(1, 1), Vector2i(1, 2)]
 	}
-	var edge_dew_clear = board._resolve_garden_layers([edge_match], [])
+	var edge_dew_clear = board._resolve_garden_layers(edge_match["positions"])
 	assert_equal(board.get_dew_bud_positions().size(), 0, "花苞配置会忽略重复和不在落叶层中的位置")
 	assert_equal(edge_dew_clear.get("dew_bursts", []).size(), 1, "边界晨露花苞可以安全触发")
 	assert_true(edge_dew_clear.get("cleared", []).has(Vector2i(0, 1)), "边界花苞仍会清扫棋盘内相邻落叶")
@@ -159,7 +184,7 @@ func test_breeze_path() -> void:
 		"type": 1,
 		"positions": [Vector2i(3, 0), Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3)]
 	}
-	var preferred_clear = board._resolve_garden_layers([preferred_match], [preferred_match])
+	var preferred_clear = board._resolve_garden_layers(preferred_match["positions"])
 	assert_true(preferred_clear.get("cleared", []).has(Vector2i(1, 3)), "推荐风向四连会让晨露多扫开一圈落叶")
 	board.free()
 
@@ -172,10 +197,24 @@ func test_breeze_path() -> void:
 	level_system.start_level(2)
 	var requirement = level_system.level_config.get("target", {}).get("requirements", [])[0]
 	level_system.collected_tiles[str(int(requirement.get("tile_type", 0)))] = int(requirement.get("count", 0))
-	assert_true(not level_system._check_win_condition(), "只完成花朵收集但未扫叶时不能通关")
-	assert_true(level_system.get_target_progress_text().contains("扫开落叶 0/3"), "HUD 同时展示落叶目标进度")
+	assert_true(level_system._check_win_condition(), "普通关收集满花朵即可通关，落叶是可选的")
+	assert_true(level_system.get_target_progress_text().contains("顺带扫开落叶 0/3（可选）"), "普通关 HUD 把落叶标为可选进度")
+	level_system.start_level_config({
+		"level_id": 2,
+		"moves": 26,
+		"available_types": [1, 2, 3, 4],
+		"is_daily_challenge": true,
+		"target": {
+			"type": "collect",
+			"requirements": [{"tile_type": 1, "count": 5}],
+			"garden_layer": {"type": "fallen_leaves", "required": 3, "required_for_clear": true, "cells": [[2, 1], [2, 3], [2, 5]]}
+		},
+		"rewards": {"seed_type": 1, "seed_count": 0, "stars": 0, "first_clear_bonus": {"stars": 0, "seed_count": 0}}
+	})
+	level_system.collected_tiles["1"] = 5
+	assert_true(not level_system._check_win_condition(), "声明 required_for_clear 的关卡仍需扫净落叶")
 	level_system.clear_garden_layers(3)
-	assert_true(level_system._check_win_condition(), "花朵与落叶目标都完成后才能通关")
+	assert_true(level_system._check_win_condition(), "落叶与收集都完成后才能通关")
 	level_system.free()
 
 	var board_visual = BoardVisual.new()
@@ -193,6 +232,29 @@ func test_breeze_path() -> void:
 	assert_equal(board_visual.dew_bud_markers.size(), 0, "触发后移除晨露花苞提示")
 	assert_true(board_visual.has_node("DewBudBurst"), "触发晨露花苞显示绽放扩散反馈")
 	board_visual.free()
+
+
+func test_special_activation() -> void:
+	var board = Board.new()
+	add_child(board)
+	board.initialize_grid({"available_types": [1, 2, 3]})
+
+	board.grid[3][3] = 1
+	board.special_grid[3][3] = "row"
+	assert_true(not board.get_special_at(Vector2i(3, 3)).is_empty(), "盘面保留清风块")
+	var result = board.activate_special(Vector2i(3, 3))
+	assert_true(result.get("matched", false), "点击清风块会立刻触发")
+	assert_true((result.get("chains", [])[0].get("special_cleared", []) as Array).size() > 0, "触发后清除整行棋子")
+	assert_true(board.get_special_at(Vector2i(3, 3)).is_empty(), "触发后清风块被消耗")
+
+	var empty_result = board.activate_special(Vector2i(0, 0))
+	assert_true(not empty_result.get("matched", true), "非清风块位置点击不会触发")
+	board.free()
+
+	var controller = SimpleGameController.new()
+	add_child(controller)
+	assert_true(controller.has_method("_activate_special"), "控制器支持直接触发清风块")
+	controller.free()
 
 
 func test_board_level_config() -> void:
@@ -216,8 +278,15 @@ func test_board_level_config() -> void:
 	var target_types: Dictionary = {}
 	for level_id in range(1, 11):
 		var config = level_system.get_level_config(level_id)
-		var target_type = int(config.get("target", {}).get("requirements", [])[0].get("tile_type", 0))
+		var requirements = config.get("target", {}).get("requirements", [])
 		var reward_type = int(config.get("rewards", {}).get("seed_type", 0))
+		assert_true(config.get("available_types", []).has(reward_type), "第%d关棋盘包含奖励花种" % level_id)
+		if requirements.is_empty():
+			var goal_type = str(config.get("target", {}).get("type", ""))
+			assert_true(goal_type == "clear_leaves" or goal_type == "clear_blockers", "第%d关是单一空间目标" % level_id)
+			target_types[reward_type] = true
+			continue
+		var target_type = int(requirements[0].get("tile_type", 0))
 		assert_equal(target_type, reward_type, "第%d关目标花与奖励花种一致" % level_id)
 		assert_true(config.get("available_types", []).has(target_type), "第%d关棋盘包含目标花" % level_id)
 		target_types[target_type] = true

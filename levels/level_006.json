@@ -1,29 +1,25 @@
 {
   "level_id": 6,
-  "moves": 26,
+  "moves": 12,
   "target": {
-    "type": "collect",
-    "requirements": [
-      {
-        "tile_type": 4,
-        "count": 16
-      }
+    "type": "clear_blockers",
+    "requirements": [],
+    "blockers": [
+      [2, 0],
+      [2, 6],
+      [4, 0],
+      [4, 6]
     ],
     "theme": {
-      "objective_name": "照暖向日葵门廊",
-      "objective_detail": "收集黄向日葵，让门廊接住清晨的光。",
-      "focus_name": "向日葵门廊",
+      "objective_name": "敲开石阶小径",
+      "objective_detail": "石块压在两条小径的两端：相邻消除只能把它敲裂，永远敲不碎；必须凑出同排的四连留下清风块，再用清风扫过整行，一次击碎同一排的两块。",
+      "focus_name": "石阶小径",
       "breeze_label": "清风唤醒",
       "breeze_bonus": 2,
-      "result_name": "门廊被向日葵照暖了"
+      "result_name": "石阶小径被打通了"
     }
   },
-  "available_types": [
-    1,
-    2,
-    3,
-    4
-  ],
+  "available_types": [1, 2, 3, 4],
   "rewards": {
     "seed_type": 4,
     "seed_count": 1,

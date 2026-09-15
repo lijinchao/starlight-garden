@@ -1,29 +1,27 @@
 {
   "level_id": 8,
-  "moves": 24,
+  "moves": 19,
   "target": {
-    "type": "collect",
-    "requirements": [
-      {
-        "tile_type": 4,
-        "count": 18
-      }
+    "type": "clear_blockers",
+    "requirements": [],
+    "blockers": [
+      [1, 0],
+      [1, 6],
+      [3, 0],
+      [3, 6],
+      [5, 0],
+      [5, 6]
     ],
     "theme": {
-      "objective_name": "照亮喷泉花环",
-      "objective_detail": "收集黄向日葵，让喷泉边重新有暖光。",
+      "objective_name": "敲开喷泉花环",
+      "objective_detail": "三排石块压在小径两端：每块都要靠清风击碎。把四连凑在石块所在的那一排，一发清风就能扫掉同一排的两块。",
       "focus_name": "喷泉花环",
       "breeze_label": "清风唤醒",
       "breeze_bonus": 2,
-      "result_name": "喷泉花环亮了起来"
+      "result_name": "喷泉花环被打通了"
     }
   },
-  "available_types": [
-    1,
-    2,
-    3,
-    4
-  ],
+  "available_types": [1, 2, 3, 4],
   "rewards": {
     "seed_type": 4,
     "seed_count": 1,

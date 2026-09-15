@@ -1,4 +1,4 @@
-## SceneManager - 场景管理器（使用GameController）
+## SceneManager - 场景管理器（编排当前唯一局内控制器 SimpleGameController）
 class_name SceneManager
 extends Control  # 改为Control以支持子节点锚点
 
@@ -108,6 +108,7 @@ func _sync_scene_sizes() -> void:
 func _connect_signals() -> void:
 	# 主菜单信号
 	main_menu.start_game.connect(_on_start_game)
+	main_menu.start_specific_level.connect(_on_secondary_start_level)
 	main_menu.open_garden.connect(_on_open_garden)
 	main_menu.open_flower_journal.connect(_on_open_flower_journal)
 	main_menu.open_daily_gift.connect(_on_open_daily_gift)
@@ -133,6 +134,10 @@ func _connect_signals() -> void:
 	game_controller.garden_layer_cleared.connect(_on_playtest_garden_layer_cleared)
 	game_controller.dew_bud_triggered.connect(_on_playtest_dew_bud_triggered)
 	game_controller.daily_challenge_retried.connect(_on_playtest_daily_challenge_retried)
+	game_controller.garden_corner_changed.connect(_on_playtest_garden_corner_changed)
+	game_controller.companion_fed.connect(_on_playtest_companion_fed)
+	game_controller.rhythm_changed.connect(_on_playtest_rhythm_changed)
+	game_controller.level_climax.connect(_on_playtest_level_climax)
 	game_controller.invalid_swap.connect(_on_playtest_invalid_swap)
 	game_controller.level_settled.connect(_on_playtest_level_settled)
 	game_controller.home_requested.connect(_on_game_home_requested)
@@ -345,7 +350,7 @@ func _leave_game_to_menu() -> void:
 	_cancel_pending_tutorial()
 	GameManager.go_to_menu()
 
-# ==================== 游戏信号处理（由GameController处理） ====================
+# ==================== 游戏信号处理（由当前局内控制器处理） ====================
 func _on_tiles_matched(_positions: Array, _tile_type: int) -> void:
 	pass
 
@@ -392,6 +397,22 @@ func _on_playtest_dew_bud_triggered(payload: Dictionary) -> void:
 
 func _on_playtest_daily_challenge_retried(payload: Dictionary) -> void:
 	playtest_recorder.record_event("daily_challenge_retried", payload)
+
+
+func _on_playtest_garden_corner_changed(payload: Dictionary) -> void:
+	playtest_recorder.record_event("garden_corner_grew", payload)
+
+
+func _on_playtest_rhythm_changed(payload: Dictionary) -> void:
+	playtest_recorder.record_event("rhythm_escalated", payload)
+
+
+func _on_playtest_companion_fed(payload: Dictionary) -> void:
+	playtest_recorder.record_event("companion_fed", payload)
+
+
+func _on_playtest_level_climax(payload: Dictionary) -> void:
+	playtest_recorder.record_event("level_climax", payload)
 
 
 func _on_playtest_invalid_swap(payload: Dictionary) -> void:

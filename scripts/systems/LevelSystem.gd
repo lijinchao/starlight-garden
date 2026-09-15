@@ -9,6 +9,8 @@ signal target_updated(collected: Dictionary)
 signal level_won(stars: int, score: int)
 signal level_failed()
 signal level_continued(extra_moves: int)
+signal garden_corner_changed(payload: Dictionary)
+signal rhythm_changed(payload: Dictionary)
 
 # ==================== 变量 ====================
 var current_level_id: int = 1
@@ -22,8 +24,15 @@ var breeze_bonus_progress: int = 0
 var last_awakened_focus: String = ""
 var garden_layers_cleared: int = 0
 var garden_layers_total: int = 0
+var blockers_cleared: int = 0
+var blockers_total: int = 0
 var dew_buds_triggered: int = 0
 var max_dew_chain: int = 0
+var garden_corner_stage: int = 0
+var rhythm_tier: int = 0
+
+const GARDEN_CORNER_STAGES: int = 3
+const RHYTHM_TIERS: int = 3
 
 # ==================== 关卡配置 ====================
 # 获取关卡配置（程序化生成或从文件加载）
@@ -247,10 +256,14 @@ func start_level_config(config: Dictionary, bonus_moves: int = 0) -> void:
 	breeze_bonus_progress = 0
 	last_awakened_focus = ""
 	garden_layers_cleared = 0
+	blockers_cleared = 0
 	dew_buds_triggered = 0
 	max_dew_chain = 0
+	garden_corner_stage = 0
+	rhythm_tier = 0
 	var layer_config = level_config.get("target", {}).get("garden_layer", {})
 	garden_layers_total = int(layer_config.get("required", layer_config.get("cells", []).size()))
+	blockers_total = (level_config.get("target", {}).get("blockers", []) as Array).size()
 	
 	level_loaded.emit(level_config)
 
@@ -286,6 +299,13 @@ func clear_garden_layers(count: int) -> void:
 	target_updated.emit(collected_tiles)
 
 
+func clear_blockers(count: int) -> void:
+	if not is_level_active or count <= 0:
+		return
+	blockers_cleared = mini(blockers_total, blockers_cleared + count)
+	target_updated.emit(collected_tiles)
+
+
 func record_dew_bud_bursts(bursts: Array) -> void:
 	if not is_level_active or bursts.is_empty():
 		return
@@ -310,6 +330,8 @@ func add_score(points: int) -> void:
 
 # 检查胜利条件
 func _check_win_condition() -> bool:
+	if str(level_config.get("target", {}).get("type", "")) == "clear_blockers":
+		return blockers_cleared >= blockers_total
 	var requirements = level_config.get("target", {}).get("requirements", [])
 	
 	for req in requirements:
@@ -319,10 +341,95 @@ func _check_win_condition() -> bool:
 		
 		if collected < required_count:
 			return false
-	if garden_layers_cleared < garden_layers_total:
+	if _requires_garden_layers() and garden_layers_cleared < garden_layers_total:
 		return false
 	
 	return true
+
+
+# 普通关的落叶是可选清场收益；每日风庭等显式声明 required_for_clear 的关卡才把它计入通关。
+func _requires_garden_layers() -> bool:
+	if garden_layers_total <= 0:
+		return false
+	var layer = level_config.get("target", {}).get("garden_layer", {})
+	if layer is Dictionary:
+		return bool(layer.get("required_for_clear", false))
+	return false
+
+
+# 本局花园角落的可见成长：由主目标与必需落叶进度共同推进，分三阶段。
+func get_garden_progress_ratio() -> float:
+	var ratio = 0.0
+	var requirements = level_config.get("target", {}).get("requirements", [])
+	if not requirements.is_empty():
+		var total_required = 0
+		var total_collected = 0
+		for req in requirements:
+			var required = int(req.get("count", 0))
+			total_required += required
+			total_collected += mini(int(collected_tiles.get(str(int(req.get("tile_type", 0))), 0)), required)
+		if total_required > 0:
+			ratio = float(total_collected) / float(total_required)
+	if _requires_garden_layers() and garden_layers_total > 0:
+		ratio = minf(ratio, float(garden_layers_cleared) / float(garden_layers_total))
+	return clampf(ratio, 0.0, 1.0)
+
+
+func refresh_garden_corner() -> Dictionary:
+	if not is_level_active:
+		return {}
+	var ratio = get_garden_progress_ratio()
+	var target_stage = clampi(int(floor(ratio * GARDEN_CORNER_STAGES)), 0, GARDEN_CORNER_STAGES)
+	if target_stage <= garden_corner_stage:
+		return {}
+	garden_corner_stage = target_stage
+	var payload = {
+		"stage": garden_corner_stage,
+		"max_stage": GARDEN_CORNER_STAGES,
+		"focus_name": str(get_theme_target_data().get("focus_name", "花园角落")),
+		"progress_ratio": ratio,
+		"level_id": current_level_id
+	}
+	garden_corner_changed.emit(payload)
+	return payload
+
+
+# 一局的情绪节奏：接近目标或剩余步数偏低时分级升温，完成由控制器负责高潮反馈。
+func get_rhythm_tier() -> int:
+	if not is_level_active:
+		return 0
+	var ratio = get_garden_progress_ratio()
+	var total_moves = maxf(1.0, float(level_config.get("moves", Constants.MAX_MOVES_DEFAULT)))
+	var moves_ratio = float(moves_left) / total_moves
+	var tier = 0
+	if ratio >= 0.66:
+		tier = 1
+	if ratio >= 0.9:
+		tier = 2
+	if ratio >= 0.5 and moves_ratio <= 0.2:
+		tier = maxi(tier, 1)
+	if ratio >= 0.75 and moves_ratio <= 0.1:
+		tier = maxi(tier, 2)
+	return tier
+
+
+func refresh_rhythm() -> Dictionary:
+	if not is_level_active:
+		return {}
+	var target_tier = get_rhythm_tier()
+	if target_tier <= rhythm_tier:
+		return {}
+	rhythm_tier = target_tier
+	var payload = {
+		"tier": rhythm_tier,
+		"max_tier": RHYTHM_TIERS - 1,
+		"focus_name": str(get_theme_target_data().get("focus_name", "花园角落")),
+		"progress_ratio": get_garden_progress_ratio(),
+		"moves_left": moves_left,
+		"level_id": current_level_id
+	}
+	rhythm_changed.emit(payload)
+	return payload
 
 # 计算星级
 func _calculate_stars() -> int:
@@ -383,8 +490,15 @@ func get_target_progress_text() -> String:
 			texts.append("%s\n通关：%s %d/%d" % [theme.get("objective_name", tile_name), tile_name, collected, required])
 		else:
 			texts.append("通关：%s %d/%d" % [tile_name, collected, required])
+	if str(level_config.get("target", {}).get("type", "")) == "clear_blockers":
+		texts.append("清除石块 %d/%d" % [blockers_cleared, blockers_total])
+	if requirements.is_empty() and not str(theme.get("objective_name", "")).is_empty():
+		texts.append(str(theme.get("objective_name")))
 	if garden_layers_total > 0:
-		texts.append("扫开落叶 %d/%d" % [garden_layers_cleared, garden_layers_total])
+		if _requires_garden_layers():
+			texts.append("扫开落叶 %d/%d" % [garden_layers_cleared, garden_layers_total])
+		else:
+			texts.append("顺带扫开落叶 %d/%d（可选）" % [garden_layers_cleared, garden_layers_total])
 	
 	return "\n".join(texts)
 
@@ -401,10 +515,17 @@ func get_target_intro_text() -> String:
 		var dew_hint = ""
 		if garden_layer is Dictionary and not garden_layer.get("dew_buds", []).is_empty():
 			dew_hint = " 晨露花苞绽放后会扫开十字落叶。"
-		return "在落叶旁消除；四连会沿横/竖方向吹过整条路径。%s\n扫净落叶并收集满 %d 朵%s，带回%s花种。" % [
-			dew_hint,
+		if _requires_garden_layers():
+			return "在落叶旁消除；四连会沿横/竖方向吹过整条路径。%s\n扫净落叶并收集满 %d 朵%s，带回%s花种。" % [
+				dew_hint,
+				int(requirement.get("count", 0)),
+				Constants.TILE_NAMES.get(tile_type, "花"),
+				Constants.TILE_NAMES.get(reward_type, "花")
+			]
+		return "收集满 %d 朵%s即可通过；顺带消除或四连会帮你扫开落叶。%s\n完成后带回%s花种。" % [
 			int(requirement.get("count", 0)),
 			Constants.TILE_NAMES.get(tile_type, "花"),
+			dew_hint,
 			Constants.TILE_NAMES.get(reward_type, "花")
 		]
 	var detail = str(get_theme_target_data().get("objective_detail", "让这里先亮起来。"))
@@ -438,6 +559,9 @@ func get_theme_progress_snapshot() -> Dictionary:
 		"garden_layers_total": garden_layers_total,
 		"dew_buds_triggered": dew_buds_triggered,
 		"max_dew_chain": max_dew_chain,
+		"garden_corner_stage": garden_corner_stage,
+		"garden_corner_stages": GARDEN_CORNER_STAGES,
+		"rhythm_tier": rhythm_tier,
 		"last_awakened_focus": last_awakened_focus
 	}
 

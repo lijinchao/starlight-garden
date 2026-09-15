@@ -43,13 +43,14 @@ func show_victory(settlement: Dictionary, on_next_level: Callable = Callable(), 
 	_show_popup("victory", popup)
 
 # 显示失败弹窗
-func show_failure(settlement: Dictionary, on_continue: Callable = Callable(), on_rest: Callable = Callable()) -> void:
+func show_failure(settlement: Dictionary, on_continue: Callable = Callable(), on_rest: Callable = Callable(), on_retry: Callable = Callable()) -> void:
 	close_popup("failure")
 	popup_actions["failure"] = {
 		"continue": on_continue,
-		"rest": on_rest
+		"rest": on_rest,
+		"retry": on_retry
 	}
-	var popup = _create_failure_popup(settlement)
+	var popup = _create_failure_popup(settlement, on_retry.is_valid())
 	_show_popup("failure", popup)
 
 # 显示暂停弹窗
@@ -180,12 +181,19 @@ func _create_victory_popup(settlement: Dictionary) -> Control:
 		double_btn.custom_minimum_size = Vector2(120, 50)
 		double_btn.pressed.connect(_on_double_reward_pressed)
 		btn_container.add_child(double_btn)
+
+	# 回主页：结算后不强迫玩家继续过关
+	var home_btn = Button.new()
+	home_btn.text = "回主页"
+	home_btn.custom_minimum_size = Vector2(120, 50)
+	home_btn.pressed.connect(_on_home_from_victory_pressed)
+	btn_container.add_child(home_btn)
 	
 	popup.add_child(panel)
 	return popup
 
 # 创建失败弹窗
-func _create_failure_popup(settlement: Dictionary) -> Control:
+func _create_failure_popup(settlement: Dictionary, retry_available: bool = false) -> Control:
 	var moves_used = int(settlement.get("moves_used", 0))
 	var continue_cost = int(settlement.get("continue_cost", 0))
 	var reward_lines = SettlementService.format_primary_rewards_summary(settlement)
@@ -251,6 +259,14 @@ func _create_failure_popup(settlement: Dictionary) -> Control:
 	btn_container.add_theme_constant_override("separation", 20)
 	vbox.add_child(btn_container)
 	
+	# 重试本关：谜题关卡必须能免费立刻重来
+	if retry_available:
+		var retry_btn = Button.new()
+		retry_btn.text = "重试本关"
+		retry_btn.custom_minimum_size = Vector2(120, 50)
+		retry_btn.pressed.connect(_on_retry_pressed)
+		btn_container.add_child(retry_btn)
+
 	# 休息一下按钮
 	var rest_btn = Button.new()
 	rest_btn.text = "回花园看看" if early_focus else "休息一下"
@@ -442,6 +458,18 @@ func _on_double_reward_pressed() -> void:
 	close_popup("victory")
 	if on_double_reward.is_valid():
 		on_double_reward.call()
+
+func _on_home_from_victory_pressed() -> void:
+	close_popup("victory")
+	GameManager.go_to_menu()
+
+func _on_retry_pressed() -> void:
+	var actions = popup_actions.get("failure", {})
+	var on_retry = actions.get("retry", Callable())
+	close_popup("failure")
+	if on_retry.is_valid():
+		on_retry.call()
+
 
 func _on_rest_pressed() -> void:
 	var actions = popup_actions.get("failure", {})

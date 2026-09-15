@@ -35,6 +35,7 @@ EconomyService="*res://scripts/autoload/EconomyService.gd"
 FlowerLanguageService="*res://scripts/autoload/FlowerLanguageService.gd"
 DailyService="*res://scripts/autoload/DailyService.gd"
 DailyChallengeService="*res://scripts/autoload/DailyChallengeService.gd"
+CompanionService="*res://scripts/autoload/CompanionService.gd"
 DecorationService="*res://scripts/autoload/DecorationService.gd"
 InLevelAssistService="*res://scripts/autoload/InLevelAssistService.gd"
 

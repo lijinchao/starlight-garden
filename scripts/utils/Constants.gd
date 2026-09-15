@@ -17,7 +17,8 @@ enum TileType {
 	WHITE_JASMINE = 5,      # 白茉莉 - 纯真
 	PINK_CHERRY = 6,        # 粉樱花 - 浪漫
 	BOMB = 7,               # 星光炸弹
-	RAINBOW = 8             # 彩虹花
+	RAINBOW = 8,            # 彩虹花
+	BLOCKER = 9             # 不可移动石块
 }
 
 # 元素颜色（用于程序化生成）

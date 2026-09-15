@@ -12,6 +12,8 @@ signal tile_clicked(pos: Vector2i)
 var tiles: Dictionary = {}  # {Vector2i: Tile}
 var garden_layer_markers: Dictionary = {}
 var dew_bud_markers: Dictionary = {}
+var special_markers: Dictionary = {}
+var blocker_markers: Dictionary = {}
 var click_control: Control
 var last_clicked_pos: Vector2i = Vector2i(-1, -1)
 var transient_tweens: Array[Tween] = []
@@ -28,6 +30,8 @@ func _exit_tree() -> void:
 	transient_tweens.clear()
 	clear_all_tiles()
 	clear_garden_layers()
+	clear_specials()
+	clear_blocker_markers()
 	if click_control and is_instance_valid(click_control):
 		click_control.queue_free()
 		click_control = null
@@ -55,11 +59,13 @@ func _emit_click_at_position(local_pos: Vector2) -> void:
 func initialize_grid(grid: Array) -> void:
 	clear_all_tiles()
 	clear_garden_layers()
+	clear_specials()
+	clear_blocker_markers()
 	
 	for row in range(Constants.GRID_ROWS):
 		for col in range(Constants.GRID_COLS):
 			var tile_type = grid[row][col]
-			if tile_type != Constants.TileType.NONE:
+			if tile_type != Constants.TileType.NONE and tile_type != Constants.TileType.BLOCKER:
 				var pos = Vector2i(row, col)
 				_create_tile(tile_type, pos)
 
@@ -103,6 +109,100 @@ func initialize_garden_layers(positions: Array, dew_bud_positions: Array = []) -
 		bud_marker.z_index = 19
 		add_child(bud_marker)
 		dew_bud_markers[pos] = bud_marker
+
+func clear_specials() -> void:
+	for marker in special_markers.values():
+		if marker and is_instance_valid(marker):
+			marker.queue_free()
+	special_markers.clear()
+
+
+func set_specials(special_grid: Array) -> void:
+	clear_specials()
+	for row in range(special_grid.size()):
+		for col in range(special_grid[row].size()):
+			var direction = str(special_grid[row][col])
+			if direction.is_empty():
+				continue
+			var pos = Vector2i(row, col)
+			var marker = Label.new()
+			marker.name = "Breeze_%d_%d" % [pos.x, pos.y]
+			marker.text = "↔" if direction == "row" else "↕"
+			marker.position = _grid_to_world(pos) + Vector2(22, 16)
+			marker.size = Vector2(52, 52)
+			marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			marker.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			marker.add_theme_font_size_override("font_size", 40)
+			marker.add_theme_color_override("font_color", Color(0.62, 0.95, 1.0, 1.0))
+			marker.add_theme_color_override("font_outline_color", Color(0.05, 0.24, 0.36, 0.95))
+			marker.add_theme_constant_override("outline_size", 5)
+			marker.z_index = 20
+			add_child(marker)
+			special_markers[pos] = marker
+
+
+func clear_blocker_markers() -> void:
+	for marker in blocker_markers.values():
+		if marker and is_instance_valid(marker):
+			marker.queue_free()
+	blocker_markers.clear()
+
+
+func set_blockers(positions: Array, hp_map: Dictionary = {}) -> void:
+	clear_blocker_markers()
+	for pos in positions:
+		var hp = int(hp_map.get(pos, 2))
+		var marker = Label.new()
+		marker.name = "Blocker_%d_%d" % [pos.x, pos.y]
+		marker.text = "🪨"
+		marker.position = _grid_to_world(pos) + Vector2(14, 12)
+		marker.size = Vector2(68, 68)
+		marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		marker.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if hp <= 1:
+			# 裂开状态：emoji 不吃 font_color，必须用 modulate 染色，并叠加可见裂痕
+			marker.add_theme_font_size_override("font_size", 40)
+			marker.modulate = Color(1.0, 0.5, 0.45)
+			marker.tooltip_text = "裂开了，再敲一次就碎"
+			var crack = Label.new()
+			crack.name = "Crack"
+			crack.text = "✕"
+			crack.add_theme_font_size_override("font_size", 34)
+			crack.add_theme_color_override("font_color", Color(1.0, 0.15, 0.1))
+			crack.add_theme_color_override("font_outline_color", Color(0.35, 0.02, 0.02))
+			crack.add_theme_constant_override("outline_size", 5)
+			crack.position = Vector2(20, 12)
+			crack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			marker.add_child(crack)
+		else:
+			marker.add_theme_font_size_override("font_size", 46)
+		marker.z_index = 17
+		add_child(marker)
+		blocker_markers[pos] = marker
+
+
+func show_special_blast(origin: Vector2i, direction: String) -> void:
+	if origin == Vector2i(-1, -1) or direction.is_empty():
+		return
+	var board_size = Constants.GRID_COLS * (Constants.TILE_SIZE + Constants.TILE_GAP)
+	var beam = ColorRect.new()
+	beam.color = Color(0.62, 0.95, 1.0, 0.55)
+	beam.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if direction == "row":
+		beam.position = Vector2(0, origin.x * (Constants.TILE_SIZE + Constants.TILE_GAP) + 6)
+		beam.size = Vector2(board_size, Constants.TILE_SIZE)
+	else:
+		beam.position = Vector2(origin.y * (Constants.TILE_SIZE + Constants.TILE_GAP) + 6, 0)
+		beam.size = Vector2(Constants.TILE_SIZE, board_size)
+	beam.z_index = 16
+	add_child(beam)
+	var tween = create_tween()
+	transient_tweens.append(tween)
+	tween.tween_property(beam, "modulate:a", 0.0, 0.35)
+	tween.tween_callback(beam.queue_free)
+
 
 func _create_tile(tile_type: int, pos: Vector2i, with_animation: bool = false) -> Tile:
 	var tile = Tile.new()
@@ -219,7 +319,7 @@ func sync_with_grid(grid: Array) -> void:
 		for col in range(Constants.GRID_COLS):
 			var pos = Vector2i(row, col)
 			var tile_type = grid[row][col]
-			if tile_type == Constants.TileType.NONE:
+			if tile_type == Constants.TileType.NONE or tile_type == Constants.TileType.BLOCKER:
 				continue
 
 			valid_positions[pos] = true

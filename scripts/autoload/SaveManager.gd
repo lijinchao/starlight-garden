@@ -19,7 +19,8 @@ const DEFAULT_DATA = {
 		"slots": [],
 		"inventory": [],
 		"decorations": [],
-		"restoration_stage": 0
+		"restoration_stage": 0,
+		"restored_corners": []
 	},
 	"flower_language": {
 		"fragments": {},
@@ -30,6 +31,14 @@ const DEFAULT_DATA = {
 		"gift_claimed": false,
 		"tasks": {},
 		"challenge": {}
+	},
+	"companion": {
+		"name": "小星",
+		"affinity": 0,
+		"last_fed_total": 0,
+		"met": false,
+		"needs": {"light": 60, "water": 60, "company": 60},
+		"last_seen_unix": 0
 	},
 	"meta_progression": {
 		"unlocked": [],
@@ -203,6 +212,32 @@ func update_daily_data(data: Dictionary) -> void:
 	save_game()
 
 
+func get_companion_data() -> Dictionary:
+	if not save_data.has("companion"):
+		save_data["companion"] = DEFAULT_DATA["companion"].duplicate(true)
+	return _normalize_companion_data(save_data["companion"])
+
+
+func update_companion_data(data: Dictionary) -> void:
+	save_data["companion"] = _normalize_companion_data(data)
+	save_game()
+
+
+func _normalize_companion_data(data: Dictionary) -> Dictionary:
+	var needs = {"light": 60, "water": 60, "company": 60}
+	if data.has("needs") and data["needs"] is Dictionary:
+		for key in needs.keys():
+			needs[key] = clampi(int(data["needs"].get(key, needs[key])), 10, 100)
+	return {
+		"name": str(data.get("name", "小星")),
+		"affinity": maxi(0, int(data.get("affinity", 0))),
+		"last_fed_total": maxi(0, int(data.get("last_fed_total", 0))),
+		"met": bool(data.get("met", false)),
+		"needs": needs,
+		"last_seen_unix": maxi(0, int(data.get("last_seen_unix", 0)))
+	}
+
+
 func get_meta_progression_data() -> Dictionary:
 	if not save_data.has("meta_progression"):
 		save_data["meta_progression"] = DEFAULT_DATA["meta_progression"].duplicate(true)
@@ -308,6 +343,9 @@ func _normalize_save_data(data: Dictionary) -> Dictionary:
 	if data.has("daily") and data["daily"] is Dictionary:
 		normalized["daily"] = _normalize_daily_data(data["daily"])
 
+	if data.has("companion") and data["companion"] is Dictionary:
+		normalized["companion"] = _normalize_companion_data(data["companion"])
+
 	if data.has("meta_progression") and data["meta_progression"] is Dictionary:
 		normalized["meta_progression"] = _normalize_meta_progression_data(data["meta_progression"])
 	else:
@@ -321,7 +359,8 @@ func _normalize_garden_data(data: Dictionary) -> Dictionary:
 		"slots": [],
 		"inventory": [],
 		"decorations": [],
-		"restoration_stage": 0
+		"restoration_stage": 0,
+		"restored_corners": []
 	}
 
 	if data.has("slots") and data["slots"] is Array:
@@ -337,7 +376,51 @@ func _normalize_garden_data(data: Dictionary) -> Dictionary:
 
 	normalized["restoration_stage"] = clampi(int(data.get("restoration_stage", 0)), 0, RESTORATION_STAGES.size() - 1)
 
+	if data.has("restored_corners") and data["restored_corners"] is Array:
+		var seen_levels: Dictionary = {}
+		for raw_corner in data["restored_corners"]:
+			if not (raw_corner is Dictionary):
+				continue
+			var corner_level = int(raw_corner.get("level_id", 0))
+			var corner_name = str(raw_corner.get("name", "")).strip_edges()
+			if corner_level <= 0 or corner_name.is_empty() or seen_levels.has(corner_level):
+				continue
+			seen_levels[corner_level] = true
+			normalized["restored_corners"].append({
+				"level_id": corner_level,
+				"name": corner_name,
+				"flower_type": int(raw_corner.get("flower_type", 0))
+			})
+
 	return normalized
+
+
+# 已恢复的具名花园角落（按关卡去重，跨存档保留）。
+func get_restored_corners() -> Array:
+	return get_garden_data().get("restored_corners", [])
+
+
+# 记录一处被本局“打通”的具名角落；同一关只记一次。
+func record_restored_corner(level_id: int, corner_name: String, flower_type: int = 0) -> Dictionary:
+	var clean_name = corner_name.strip_edges()
+	if level_id <= 0 or clean_name.is_empty():
+		return {"recorded": false, "reason": "invalid"}
+
+	var garden_data = get_garden_data()
+	var corners: Array = garden_data.get("restored_corners", [])
+	for corner in corners:
+		if int(corner.get("level_id", -1)) == level_id:
+			return {
+				"recorded": false,
+				"reason": "already_restored",
+				"name": str(corner.get("name", clean_name)),
+				"total": corners.size()
+			}
+
+	corners.append({"level_id": level_id, "name": clean_name, "flower_type": flower_type})
+	garden_data["restored_corners"] = corners
+	update_garden_data(garden_data)
+	return {"recorded": true, "name": clean_name, "total": corners.size()}
 
 
 func _normalize_flower_language_data(data: Dictionary) -> Dictionary:

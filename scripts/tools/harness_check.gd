@@ -20,6 +20,10 @@ const REQUIRED_DOCS: Array[String] = [
 	"res://docs/ITERATION_I_PRODUCT_LOOP_PLAN.md",
 	"res://docs/ITERATION_J_GARDEN_SPATIAL_PLAY_PLAN.md",
 	"res://docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md",
+	"res://docs/ITERATION_M_CORE_FEEL_PLAN.md",
+	"res://docs/ITERATION_N_COMPANION_CARE_PLAN.md",
+	"res://docs/ITERATION_O_A_REAL_COMPANION_PLAN.md",
+	"res://docs/ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md",
 	"res://docs/ITERATION_TEMPLATE.md",
 	"res://docs/MANUAL_VERIFICATION_GUIDE.md",
 	"res://docs/HARNESS_ENGINEERING.md",
@@ -45,7 +49,13 @@ const MANUAL_REQUIRED_TERMS: Array[String] = [
 	"结算降噪",
 	"花园恢复",
 	"局内爽感",
-	"清风唤醒"
+	"清风唤醒",
+	"每日风庭",
+	"晨露",
+	"花苞",
+	"花园角落",
+	"情绪节奏",
+	"照料对象"
 ]
 
 const REQUIRED_AUTOLOADS: Array[String] = [
@@ -61,6 +71,8 @@ const REQUIRED_AUTOLOADS: Array[String] = [
 ]
 
 const LEVEL_COUNT: int = 20
+const CURRENT_ITERATION_PATH: String = "res://docs/ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md"
+const ACCEPTANCE_SECTION: String = "验收测试映射"
 
 var _failures: Array[String] = []
 var _checks: int = 0
@@ -75,6 +87,7 @@ func _init() -> void:
 	_check_version_contract()
 	_check_doc_discoverability()
 	_check_iteration_contract()
+	_check_acceptance_test_traceability()
 	_check_manual_verification_contract()
 	_check_project_autoloads()
 	_check_level_configs()
@@ -121,16 +134,16 @@ func _check_doc_discoverability() -> void:
 	_expect(readme.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "README 暴露当前产品与架构基线")
 	_expect(readme.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "README 暴露主题与玩法复盘")
 	_expect(readme.contains("CHANGELOG.md"), "README 暴露版本历史")
-	_expect(readme.contains("ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md"), "README 暴露当前迭代 L 文档入口")
+	_expect(readme.contains("ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md"), "README 暴露当前迭代 P 文档入口")
 	_expect(agents.contains("HARNESS_ENGINEERING.md"), "AGENTS 暴露 Harness 文档入口")
 	_expect(agents.contains("CURRENT_PRODUCT_AND_ARCHITECTURE.md"), "AGENTS 暴露当前产品与架构基线")
 	_expect(agents.contains("PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md"), "AGENTS 暴露主题与玩法复盘")
-	_expect(agents.contains("ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md"), "AGENTS 指向当前迭代 L")
+	_expect(agents.contains("ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md"), "AGENTS 指向当前迭代 P")
 	_expect(test_docs.contains("run_harness.sh"), "测试文档暴露统一 Harness 入口")
 
 
 func _check_iteration_contract() -> void:
-	var iteration = _read_text("res://docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md")
+	var iteration = _read_text("res://docs/ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md")
 	_expect(_contains_any(iteration, ["迭代目标", "迭代 H 目标"]), "当前迭代文档包含迭代目标")
 	_expect(iteration.contains("产品目标"), "当前迭代文档包含产品目标")
 	_expect(iteration.contains("用户感知"), "当前迭代文档包含用户感知结果")
@@ -140,6 +153,74 @@ func _check_iteration_contract() -> void:
 	_expect(iteration.contains("完成"), "当前迭代文档包含完成状态或完成定义")
 	_expect(iteration.contains("试玩"), "当前迭代文档覆盖试玩验证")
 	_expect(iteration.contains("不联网"), "当前迭代文档明确本地数据边界")
+
+
+# 目标级验收测试先行：当前迭代文档必须声明功能项到“已注册、已实现”的验收测试的映射。
+func _check_acceptance_test_traceability() -> void:
+	var iteration = _read_text(CURRENT_ITERATION_PATH)
+	var section = _extract_section(iteration, ACCEPTANCE_SECTION)
+	_expect(not section.strip_edges().is_empty(), "当前迭代文档包含验收测试映射")
+	if section.strip_edges().is_empty():
+		return
+
+	var test_names = _extract_test_names(section)
+	_expect(test_names.size() >= 1, "验收测试映射至少包含 1 个目标级测试")
+
+	var runner_text = _read_text("res://tests/TestRunner.gd")
+	var suite_text := ""
+	for suite_path in _suite_paths():
+		suite_text += _read_text(suite_path)
+
+	for test_name in test_names:
+		_expect(runner_text.contains(test_name), "验收测试已注册: %s" % test_name)
+		_expect(suite_text.contains("func %s(" % test_name), "验收测试已实现: %s" % test_name)
+
+
+func _extract_section(text: String, title: String) -> String:
+	var lines = text.split("\n")
+	var collecting = false
+	var body: Array[String] = []
+	for line in lines:
+		if not collecting:
+			if line.strip_edges() == "## " + title:
+				collecting = true
+			continue
+		if line.begins_with("## "):
+			break
+		body.append(line)
+	return "\n".join(body)
+
+
+func _extract_test_names(text: String) -> Array[String]:
+	var names: Array[String] = []
+	var cursor = 0
+	while true:
+		var found = text.find("test_", cursor)
+		if found < 0:
+			break
+		var end = found
+		while end < text.length() and _is_test_char(text[end]):
+			end += 1
+		var name = text.substr(found, end - found)
+		if not name.is_empty() and not names.has(name):
+			names.append(name)
+		cursor = end
+	return names
+
+
+func _is_test_char(ch: String) -> bool:
+	return (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or (ch >= "0" and ch <= "9") or ch == "_"
+
+
+func _suite_paths() -> Array[String]:
+	var paths: Array[String] = []
+	var dir = DirAccess.open("res://tests/suites")
+	if dir == null:
+		return paths
+	for file_name in dir.get_files():
+		if file_name.ends_with(".gd"):
+			paths.append("res://tests/suites/" + file_name)
+	return paths
 
 
 func _check_manual_verification_contract() -> void:
@@ -209,7 +290,13 @@ func _has_collect_target(config: Dictionary) -> bool:
 	var target = config.get("target", {})
 	if not target is Dictionary:
 		return false
-	if target.get("type", "") != "collect":
+	var target_type = str(target.get("type", ""))
+	if target_type == "clear_leaves":
+		var layer = target.get("garden_layer", {})
+		return layer is Dictionary and not (layer.get("cells", []) as Array).is_empty()
+	if target_type == "clear_blockers":
+		return not (target.get("blockers", []) as Array).is_empty()
+	if target_type != "collect":
 		return false
 	var requirements = target.get("requirements", [])
 	if not requirements is Array or requirements.is_empty():

@@ -175,6 +175,7 @@
       "AGENTS.md",
       "AGENTS.delta.md"
     ],
+    "manualVerification": "docs/MANUAL_VERIFICATION_GUIDE.md",
     "postmortems": "docs/postmortems"
   },
   "lock": {
@@ -211,7 +212,7 @@
       "commit": "99ef32c78c2040b294cd90631669b27dc3ac34cd"
     },
     "outputs": {
-      "AGENTS.md": "714c81c04de03afac830727a3d202b3f88da31879478908ed2d2417a0c5e7d16",
+      "AGENTS.md": "d390a79f6a8b6e2014b91b9a8c38e36f71da011e5b5ed8215de9f21c5efe6dd4",
       "REVIEW.md": "63963d3839b7266410a1bf5ef12ed6aca57a24b505250be949c8bca826c2611b"
     },
     "base": {

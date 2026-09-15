@@ -79,6 +79,14 @@ func apply_victory_settlement(settlement: Dictionary) -> void:
 	SaveManager.update_player_data(player_data)
 	settlement["player_total_runs_after"] = int(player_data.get("total_runs", 0))
 	settlement["restoration_progress"] = SaveManager.sync_restoration_stage(int(player_data.get("total_runs", 0)))
+
+	# 把本局的因果落到具体的一处花园角落：清光哪一处，花园里就叫那个名字的那一处永久亮起来。
+	var theme_progress = _get_theme_progress(settlement)
+	var focus_name = str(theme_progress.get("focus_name", "")).strip_edges()
+	if not focus_name.is_empty():
+		settlement["restored_corner"] = SaveManager.record_restored_corner(level_id, focus_name, int(rewards.get("seed_type", 0)))
+		settlement["restored_corner_name"] = focus_name
+
 	EconomyService.add_stars(int(rewards.get("stars", 0)))
 
 	var seed_type = int(rewards.get("seed_type", Constants.TileType.RED_ROSE))
@@ -218,8 +226,39 @@ func format_rewards_summary(settlement: Dictionary) -> Array:
 	return lines
 
 
+# 结算的情绪回应：把首层文案绑定到本局实际发生的事，而不是通用安慰。
+func format_emotional_reply(settlement: Dictionary) -> String:
+	var theme_progress = _get_theme_progress(settlement)
+	var focus_name = str(theme_progress.get("focus_name", "")).strip_edges()
+	if focus_name.is_empty():
+		return ""
+	var stage = int(theme_progress.get("garden_corner_stage", 0))
+	var stages = maxi(1, int(theme_progress.get("garden_corner_stages", 3)))
+	var awakenings = int(theme_progress.get("awakenings", 0))
+	var max_chain = int(theme_progress.get("max_dew_chain", 0))
+	var outcome = str(settlement.get("outcome", ""))
+	if outcome == "victory":
+		if stage >= stages:
+			return "你把「%s」整片照料亮了。" % focus_name
+		if stage > 0:
+			return "这一局你让「%s」亮到了 %d/%d。" % [focus_name, stage, stages]
+		if awakenings > 0:
+			return "清风替你把「%s」唤醒了 %d 次。" % [focus_name, awakenings]
+		return "你替「%s」留下了一点光。" % focus_name
+	if outcome == "failure":
+		if max_chain > 1:
+			return "「%s」还记得你那次晨露连锁 x%d，今天先歇一会儿。" % [focus_name, max_chain]
+		if stage > 0:
+			return "「%s」已经亮到 %d/%d，今天先歇一会儿。" % [focus_name, stage, stages]
+		return "「%s」还在等你，今天先休息吧。" % focus_name
+	return ""
+
+
 func format_primary_rewards_summary(settlement: Dictionary) -> Array:
 	var lines = []
+	var emotional_reply = format_emotional_reply(settlement)
+	if not emotional_reply.is_empty():
+		lines.append(emotional_reply)
 	var early_focus = _is_early_focus_mode(settlement)
 	var restoration = _get_restoration_progress(settlement)
 	var current_state = SaveManager.get_restoration_state()

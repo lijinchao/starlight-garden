@@ -12,6 +12,7 @@
     "garden_layer": {
       "type": "fallen_leaves",
       "required": 5,
+      "required_for_clear": false,
       "cells": [[2, 3], [3, 2], [3, 3], [3, 4], [4, 3]],
       "dew_buds": [[3, 3]]
     },

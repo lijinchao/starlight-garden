@@ -1,32 +1,28 @@
 {
   "level_id": 7,
-  "moves": 25,
+  "moves": 15,
   "target": {
-    "type": "collect",
-    "requirements": [
-      {
-        "tile_type": 5,
-        "count": 14
-      }
+    "type": "clear_blockers",
+    "requirements": [],
+    "blockers": [
+      [2, 0],
+      [2, 6],
+      [4, 0],
+      [4, 6],
+      [6, 3]
     ],
     "theme": {
-      "objective_name": "唤醒月下茉莉角",
-      "objective_detail": "收集白茉莉，让清风带走角落里的薄雾。",
+      "objective_name": "敲开月下茉莉角",
+      "objective_detail": "石块压在小径两端，底部中央还多一块：横向的四连清风扫不到它，必须把清风对准它所在的整列。先想好每一发清风要扫哪一行、哪一列。",
       "focus_name": "月下茉莉角",
       "breeze_label": "清风唤醒",
       "breeze_bonus": 2,
-      "result_name": "茉莉角透出了月光"
+      "result_name": "月下茉莉角被打通了"
     }
   },
-  "available_types": [
-    1,
-    2,
-    3,
-    4,
-    5
-  ],
+  "available_types": [1, 2, 3, 4],
   "rewards": {
-    "seed_type": 5,
+    "seed_type": 3,
     "seed_count": 1,
     "stars": 26,
     "first_clear_bonus": {

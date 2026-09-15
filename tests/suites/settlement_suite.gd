@@ -34,6 +34,15 @@ func test_settlement_service() -> void:
 		"\n".join(SettlementService.format_primary_rewards_summary(victory)).contains("清风唤醒了"),
 		"前三局胜利结算首层摘要包含局内清风唤醒反馈"
 	)
+	assert_true(
+		SettlementService.format_emotional_reply(victory).contains("露台花藤"),
+		"胜利结算的情绪回应绑定本局照料目标"
+	)
+	assert_equal(
+		SettlementService.format_primary_rewards_summary(victory)[0],
+		SettlementService.format_emotional_reply(victory),
+		"情绪回应作为结算首层第一句"
+	)
 
 	var garden = SaveManager.get_garden_data()
 	assert_equal(garden.get("inventory", []).size(), 1, "胜利结算会发放花种")
@@ -57,6 +66,10 @@ func test_settlement_service() -> void:
 	assert_equal(player_data.get("total_runs", 0), 2, "失败结算会累计总局数")
 	assert_equal(player_data.get("stars", 0), 54, "失败结算会发放保底星光")
 	assert_equal(SaveManager.get_garden_data().get("restoration_stage", -1), 2, "第二局失败后花园恢复阶段推进到2")
+	assert_true(
+		SettlementService.format_emotional_reply(failure).contains("露台花藤"),
+		"失败结算同样回应本局照料目标"
+	)
 
 	assert_true(SettlementService.try_continue_level(level_system, 10, 5), "星光足够时可继续挑战")
 	player_data = SaveManager.get_player_data()

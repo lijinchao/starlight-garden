@@ -64,6 +64,7 @@ func get_challenge_for_date(date_key: String) -> Dictionary:
 			"garden_layer": {
 				"type": "fallen_leaves",
 				"required": transformed_cells.size(),
+				"required_for_clear": true,
 				"cells": transformed_cells,
 				"dew_buds": transformed_buds
 			},

@@ -33,6 +33,19 @@ func _init() -> void:
 		int(summary.get("directional_clear_count", 0))
 	])
 	print("累计扫开落叶: %d" % int(summary.get("garden_layers_cleared", 0)))
+	print("花园角落推进: %d 次，最高阶段 %d" % [
+		int(summary.get("garden_corner_growth_count", 0)),
+		int(summary.get("max_garden_corner_stage", 0))
+	])
+	print("情绪升温: %d 次，最高档 %d；完成高潮 %d 次" % [
+		int(summary.get("rhythm_escalated_count", 0)),
+		int(summary.get("max_rhythm_tier", 0)),
+		int(summary.get("level_climax_count", 0))
+	])
+	print("照料对象: 喂食 %d 次，最高阶段 %d" % [
+		int(summary.get("companion_fed_count", 0)),
+		int(summary.get("max_companion_stage", 0))
+	])
 	print("晨露花苞: 触发 %d，最大连锁 %d，额外扫叶 %d" % [
 		int(summary.get("dew_bud_triggered_count", 0)),
 		int(summary.get("max_dew_chain", 0)),
@@ -71,6 +84,13 @@ static func build_summary(events: Array) -> Dictionary:
 	var daily_challenge_victory_count = 0
 	var daily_challenge_failure_count = 0
 	var daily_challenge_retry_count = 0
+	var garden_corner_growth_count = 0
+	var max_garden_corner_stage = 0
+	var rhythm_escalated_count = 0
+	var max_rhythm_tier = 0
+	var level_climax_count = 0
+	var companion_fed_count = 0
+	var max_companion_stage = 0
 
 	for item in events:
 		var event_name = str(item.get("event", "unknown"))
@@ -91,6 +111,17 @@ static func build_summary(events: Array) -> Dictionary:
 			dew_bud_triggered_count += 1
 			dew_bud_extra_cleared += int(dew_payload.get("extra_cleared", 0))
 			max_dew_chain = maxi(max_dew_chain, int(dew_payload.get("chain_index", 1)))
+		elif event_name == "garden_corner_grew":
+			garden_corner_growth_count += 1
+			max_garden_corner_stage = maxi(max_garden_corner_stage, int(item.get("payload", {}).get("stage", 0)))
+		elif event_name == "rhythm_escalated":
+			rhythm_escalated_count += 1
+			max_rhythm_tier = maxi(max_rhythm_tier, int(item.get("payload", {}).get("tier", 0)))
+		elif event_name == "level_climax":
+			level_climax_count += 1
+		elif event_name == "companion_fed":
+			companion_fed_count += 1
+			max_companion_stage = maxi(max_companion_stage, int(item.get("payload", {}).get("stage", 0)))
 		elif event_name == "daily_challenge_started":
 			daily_challenge_started_count += 1
 		elif event_name == "daily_challenge_retried":
@@ -144,6 +175,13 @@ static func build_summary(events: Array) -> Dictionary:
 		"daily_challenge_victory_count": daily_challenge_victory_count,
 		"daily_challenge_failure_count": daily_challenge_failure_count,
 		"daily_challenge_retry_count": daily_challenge_retry_count,
+		"garden_corner_growth_count": garden_corner_growth_count,
+		"max_garden_corner_stage": max_garden_corner_stage,
+		"rhythm_escalated_count": rhythm_escalated_count,
+		"max_rhythm_tier": max_rhythm_tier,
+		"level_climax_count": level_climax_count,
+		"companion_fed_count": companion_fed_count,
+		"max_companion_stage": max_companion_stage,
 		"first_interaction_median_ms": _median(first_interaction_durations),
 		"garden_after_settlement": garden_after_settlement,
 		"level_settlement_median_ms": _median(settlement_durations),

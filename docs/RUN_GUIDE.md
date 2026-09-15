@@ -71,15 +71,15 @@ starlight-garden/
 │   │   ├── SceneManager.gd   # 场景管理器
 │   │   └── TutorialSystem.gd # 新手引导
 │   │
-│   ├── ui/                   # UI脚本
+│   ├── ui/                   # UI脚本与局内控制器
 │   │   ├── MainMenu.gd       # 主菜单
-│   │   ├── GameHUD.gd        # 游戏HUD
+│   │   ├── SimpleGameController.gd # 唯一局内控制器
 │   │   ├── GardenUI.gd       # 花园界面
+│   │   ├── DailyGiftUI.gd    # 今日花礼与今日风庭入口
 │   │   ├── SettingsUI.gd     # 设置界面
 │   │   ├── PopupManager.gd   # 弹窗管理
 │   │   ├── BoardVisual.gd    # 棋盘可视化
-│   │   ├── Tile.gd           # 元素节点
-│   │   └── TileVisual.gd     # 元素可视化
+│   │   └── Tile.gd           # 元素节点
 │   │
 │   └── utils/                # 工具类
 │       ├── Constants.gd      # 常量定义
@@ -87,13 +87,11 @@ starlight-garden/
 │       └── SpriteGenerator.gd # 精灵生成器
 │
 ├── scenes/
-│   ├── main.tscn             # 主场景
-│   └── game/
-│       ├── game.tscn         # 游戏场景
-│       └── game_complete.tscn # 完整游戏场景
+│   └── main.tscn             # 唯一入口场景
 │
 ├── tests/
 │   ├── TestRunner.gd         # 测试运行器
+│   ├── suites/               # 玩法测试套件
 │   ├── test_scene.tscn       # 测试场景
 │   └── TEST_DOCUMENTATION.md # 测试文档
 │

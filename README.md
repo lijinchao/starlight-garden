@@ -27,29 +27,31 @@
 1. **短局三消**: 7×7 网格、6 种花朵、交换消除与连锁。
 2. **主题目标**: 前 5 关围绕唤醒具体花园角落，不只收集颜色。
 3. **清风路径**: 三连清扫邻近落叶，四连沿横/竖方向吹过整条路径。
-4. **花园恢复**: 前三局持续呈现花园阶段变化，承接胜利和失败结果。
-5. **延后 Meta**: 合成、花语、每日、装饰、祝福和续关已有最小实现，但不作为首屏核心卖点。
+4. **每日风庭**: 每天同一座可复现落叶花庭，扫开晨露花苞触发十字连锁；今日花礼页可直接开始或重试。
+5. **花园恢复**: 前三局持续呈现花园阶段变化，承接胜利和失败结果。
+6. **照料对象**: 棋盘下方有一位具名花灵，消除会喂给它并得到即时回应，状态跨局留存。
+7. **延后 Meta**: 合成、花语、每日、装饰、祝福和续关已有最小实现，但不作为首屏核心卖点。
 
 ## 📚 项目文档
 
 | 文档 | 说明 |
 |------|------|
-| [当前产品与技术架构对齐审视](./docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md) | 当前产品裁决、唯一运行链路、技术债务和文档冲突处理依据 |
-| [主题与玩法复盘](./docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md) | 目标用户、碎片场景、流行玩法取舍和下一迭代验证门槛 |
-| [当前功能与迭代规划](./docs/STATUS_AND_ITERATION_PLAN.md) | 当前版本真实完成度、功能盘点、下一步策划与需求 |
-| [迭代A目标对齐与验证清单](./docs/ITERATION_A_TASK_BREAKDOWN.md) | 闭合最小主循环的目标映射、验证标准、程序任务与评估口径 |
-| [迭代B目标对齐与验证清单](./docs/ITERATION_B_TASK_BREAKDOWN.md) | 花语碎片、治愈日记与内容留存的目标映射和验证标准 |
-| [迭代C目标对齐与验证清单](./docs/ITERATION_C_TASK_BREAKDOWN.md) | 每日任务、今日花礼与次日回访的目标映射和验证标准 |
-| [迭代D目标对齐与验证清单](./docs/ITERATION_D_TASK_BREAKDOWN.md) | 花园装饰、星光消耗与氛围值的目标映射和验证标准 |
-| [迭代F目标对齐与验证清单](./docs/ITERATION_F_TASK_BREAKDOWN.md) | 前三局体验减法、花园恢复反馈与平台化差异定位 |
-| [迭代G目标对齐与验证清单](./docs/ITERATION_G_TASK_BREAKDOWN.md) | 局内爽感、清风唤醒与主题化目标验证 |
-| [迭代H目标对齐与验证清单](./docs/ITERATION_H_TASK_BREAKDOWN.md) | 本地试玩证据采集、汇总工具与产品验证门槛 |
+| [当前产品与技术架构对齐审视](./docs/CURRENT_PRODUCT_AND_ARCHITECTURE.md) | 当前产品裁决、运行链路与技术债务 |
+| [主题与玩法复盘](./docs/PRODUCT_THEME_AND_GAMEPLAY_REVIEW.md) | 目标用户、场景与玩法取舍 |
+| [核心玩法根因审视与重设方向](./docs/CORE_LOOP_RETHINK.md) | 为什么当前机制没有乐趣与情绪价值，以及 A/B/C 三条重设方向 |
+| [当前功能与迭代规划](./docs/STATUS_AND_ITERATION_PLAN.md) | 当前完成度与迭代规划 |
+| [早期迭代 A-H](./docs/) | 历史目标对齐与验证清单（A/B/C/D/F/G/H） |
 | [迭代I第4局后闭环重构](./docs/ITERATION_I_PRODUCT_LOOP_PLAN.md) | 关卡目标差异、花园可见结果、返回路径与渐进解锁的阶段计划 |
 | [迭代J花园空间玩法收敛](./docs/ITERATION_J_GARDEN_SPATIAL_PLAY_PLAN.md) | 背景热点、花种选择、永久二选一装饰与试玩门槛 |
+| [迭代K清风路径玩法验证](./docs/ITERATION_K_BREEZE_PATH_PLAN.md) | 落叶空间目标、方向四连与清风路径评估门槛 |
 | [迭代L每日风庭玩法验证](./docs/ITERATION_L_DAILY_BREEZE_GARDEN_PLAN.md) | 晨露连锁、每日布局差异与可验证试玩门槛 |
+| [迭代M核心手感减法与情感闭环](./docs/ITERATION_M_CORE_FEEL_PLAN.md) | 局内规则减法、消除→可见收获的即时反馈与情绪节奏 |
+| [迭代N具名照料对象](./docs/ITERATION_N_COMPANION_CARE_PLAN.md) | 方向 A 最小切片：把消除变成照料一个具名对象，并在局内得到回应 |
+| [迭代O A-real照料对象](./docs/ITERATION_O_A_REAL_COMPANION_PLAN.md) | 有需要 / 有自主 / 有取舍：它提出请求、按颜色喂食、时间推移与回访观察 |
+| [迭代P单一闭环谜题版](./docs/ITERATION_P_SINGLE_LOOP_PUZZLE_PLAN.md) | 一局一个目标：清光全部落叶 + 紧张步数，移出所有并列系统 |
 | [迭代模板](./docs/ITERATION_TEMPLATE.md) | 后续所有迭代统一使用的“目标-功能-验证-评估”模板 |
-| [Harness 工程](./docs/HARNESS_ENGINEERING.md) | Agent 可读的目标、约束、验证入口与机械检查基线 |
-| [手动验证指引](./docs/MANUAL_VERIFICATION_GUIDE.md) | 逐项验证结算、合成、星光用途、失败保底与连续失败鼓励 |
+| [Harness 工程](./docs/HARNESS_ENGINEERING.md) | 目标、约束与验证入口 |
+| [手动验证指引](./docs/MANUAL_VERIFICATION_GUIDE.md) | 逐项验证结算、花园、合成、星光用途、失败保底、清风路径与每日风庭 |
 | [Image 2 素材提示词与接入清单](./docs/IMAGE2_ASSET_PROMPTS.md) | 当前版本素材生成提示词、命名规范、尺寸与落盘路径 |
 | [游戏设计文档](./docs/GAME_DESIGN.md) | 游戏概念、玩法、系统设计 |
 | [市场调研报告](./docs/MARKET_RESEARCH.md) | 市场分析、竞品研究 |
@@ -66,34 +68,33 @@
 starlight-garden/
 ├── project.godot           # Godot项目配置
 ├── export_presets.cfg      # 导出配置
+├── harness.manifest.json   # 门禁与治理契约
+├── harness                 # coding-harness CLI
+├── AGENTS.delta.md         # Agent 约定生成源（AGENTS.md 由它合成）
 ├── README.md               # 项目说明
 │
 ├── docs/                   # 📚 文档目录
-│   ├── AI_DEVELOPMENT_PLAN.md
 │   ├── STATUS_AND_ITERATION_PLAN.md
-│   ├── ITERATION_A_TASK_BREAKDOWN.md
+│   ├── CURRENT_PRODUCT_AND_ARCHITECTURE.md
+│   ├── ITERATION_*_*.md    # 各迭代目标对齐与验证清单
 │   ├── ITERATION_TEMPLATE.md
 │   ├── MANUAL_VERIFICATION_GUIDE.md
+│   ├── HARNESS_ENGINEERING.md
 │   ├── GAME_DESIGN.md
-│   ├── MARKET_RESEARCH.md
-│   ├── ART_STYLE_GUIDE.md
-│   ├── DEVELOPMENT_PLAN.md
-│   ├── CODE_STANDARDS.md
-│   ├── GDSCRIPT_RULES.md
-│   └── RUN_GUIDE.md
+│   └── postmortems/        # 事故复盘
 │
 ├── scenes/                 # 场景文件
-│   ├── main.tscn
-│   └── game/
+│   └── main.tscn           # 唯一入口场景
 ├── scripts/                # 脚本文件
 │   ├── autoload/          # 自动加载单例
-│   ├── core/              # 核心逻辑
-│   ├── systems/           # 系统模块
-│   ├── ui/                # UI脚本
+│   ├── core/              # 核心逻辑（Board）
+│   ├── systems/           # 系统模块（LevelSystem / SceneManager）
+│   ├── ui/                # UI与局内控制器
+│   ├── tools/             # Harness 检查与工具
 │   └── utils/             # 工具类
 ├── assets/                 # 资源文件
 ├── levels/                 # 关卡配置
-└── tests/                  # 测试文件
+└── tests/                  # 测试入口与 suites/
 ```
 
 ## 🚀 快速开始
@@ -129,7 +130,7 @@ starlight-garden/
 GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harness.sh
 ```
 
-该入口会先导入新增资源，再检查文档、产品目标、关卡配置和核心服务注册，最后运行 Godot 自动化测试。详见 [Harness 工程](./docs/HARNESS_ENGINEERING.md)。
+该入口会先做 coding-harness 漂移检查，再导入新增资源，然后检查文档、产品目标、关卡配置和核心服务注册，最后运行 Godot 自动化测试。详见 [Harness 工程](./docs/HARNESS_ENGINEERING.md)。
 
 ## 🎯 开发进度
 
@@ -151,6 +152,7 @@ GODOT_BIN="/Users/jacklee/Downloads/Godot.app/Contents/MacOS/Godot" ./run_harnes
 - [x] 新玩家入口渐进解锁与结算降噪
 - [x] 花园恢复阶段反馈、具象角落变化与前三局体验减法
 - [x] 前 5 关主题化目标与清风唤醒机制
+- [x] 每日风庭与晨露连锁最小闭环
 - [x] 新手引导
 - [x] 基础UI界面
 - [x] 进度保存

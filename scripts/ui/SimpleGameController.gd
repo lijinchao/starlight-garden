@@ -10,6 +10,10 @@ signal daily_challenge_retried(payload: Dictionary)
 signal invalid_swap(payload: Dictionary)
 signal level_settled(payload: Dictionary)
 signal home_requested()
+signal garden_corner_changed(payload: Dictionary)
+signal companion_fed(payload: Dictionary)
+signal rhythm_changed(payload: Dictionary)
+signal level_climax(payload: Dictionary)
 
 const AsyncUtilsScript = preload("res://scripts/utils/AsyncUtils.gd")
 const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog.gd")
@@ -30,6 +34,14 @@ var home_btn: Button
 var board_container: Control  # 改为Control类型
 var background_rect: TextureRect
 var background_tint: ColorRect
+var companion_panel: PanelContainer
+var companion_title: Label
+var companion_hint: Label
+var companion_markers: Array = []
+var companion_visual: Label
+var companion_request: Label
+var companion_tween: Tween
+var companion_last_reaction: String = "它在等你喂一口光。"
 
 # 状态
 var selected_tile: Vector2i = Vector2i(-1, -1)
@@ -94,6 +106,7 @@ func _create_ui() -> void:
 	hud_container.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	hud_container.position = Vector2(0, 20)
 	hud_container.add_theme_constant_override("separation", 10)
+	hud_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hud_container)
 	
 	# 步数标签
@@ -125,6 +138,9 @@ func _create_ui() -> void:
 	status_label.custom_minimum_size = Vector2(640, 58)
 	hud_container.add_child(status_label)
 
+	for hud_label in [moves_label, score_label, target_label, status_label]:
+		hud_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 	breeze_btn = Button.new()
 	breeze_btn.custom_minimum_size = Vector2(220, 44)
 	breeze_btn.add_theme_font_size_override("font_size", 18)
@@ -138,6 +154,11 @@ func _create_ui() -> void:
 	board_container.size = Vector2(board_size, board_size)
 	board_container.position = Vector2((750 - board_size) / 2, 330)
 	add_child(board_container)
+
+	# 迭代 P：局内只保留单一目标，照料对象面板移出局内
+
+	# 主页按钮置于最上层，避免被 HUD 覆盖而无法返回主页
+	home_btn.move_to_front()
 
 func _setup_systems() -> void:
 	# 创建关卡系统
@@ -176,11 +197,16 @@ func _start_level(level_id: int, bonus_moves: int = 0) -> void:
 	board.initialize_grid(level_system.level_config)
 	board_visual.initialize_grid(board.grid)
 	board_visual.initialize_garden_layers(board.get_garden_layer_positions(), board.get_dew_bud_positions())
+	board_visual.set_specials(board.get_special_grid())
 	_update_hud()
+	_reset_level_rhythm()
 	combo_count = 0
 	first_interaction_recorded = false
 	if status_label:
 		status_label.text = level_system.get_target_intro_text()
+		var away_report = CompanionService.consume_away_report()
+		if not away_report.is_empty():
+			status_label.text = away_report
 
 
 func _start_daily_challenge(challenge_config: Dictionary) -> void:
@@ -193,7 +219,9 @@ func _start_daily_challenge(challenge_config: Dictionary) -> void:
 	board.initialize_grid(level_system.level_config)
 	board_visual.initialize_grid(board.grid)
 	board_visual.initialize_garden_layers(board.get_garden_layer_positions(), board.get_dew_bud_positions())
+	board_visual.set_specials(board.get_special_grid())
 	_update_hud()
+	_reset_level_rhythm()
 	combo_count = 0
 	first_interaction_recorded = false
 	if status_label:
@@ -241,6 +269,11 @@ func _on_tile_clicked(pos: Vector2i) -> void:
 			"moves_left": level_system.moves_left
 		})
 	
+	# 点一下清风块直接发动（不消耗步数）
+	if not board.get_special_at(pos).is_empty():
+		_activate_special(pos)
+		return
+	
 	if selected_tile == Vector2i(-1, -1):
 		# 第一次选择
 		selected_tile = pos
@@ -259,6 +292,19 @@ func _on_tile_clicked(pos: Vector2i) -> void:
 			board_visual.highlight_tile(selected_tile, false)
 			selected_tile = pos
 			board_visual.highlight_tile(pos, true)
+
+func _activate_special(pos: Vector2i) -> void:
+	board_processing = true
+	board_visual.highlight_tile(selected_tile, false)
+	selected_tile = Vector2i(-1, -1)
+	var turn_result = board.activate_special(pos)
+	if not turn_result.get("matched", false):
+		board_processing = false
+		return
+	await _process_matches(turn_result)
+	level_system.finish_turn()
+	board_processing = false
+
 
 func _attempt_swap(pos1: Vector2i, pos2: Vector2i) -> void:
 	board_processing = true
@@ -298,9 +344,11 @@ func _process_matches(turn_result: Dictionary) -> void:
 		combo_count += 1
 		
 		# 显示匹配动画并收集分数
+		var type_counts: Dictionary = {}
 		for match_data in chain_data["matches"]:
 			var positions = match_data["positions"]
 			var tile_type = match_data["type"]
+			type_counts[tile_type] = int(type_counts.get(tile_type, 0)) + positions.size()
 			
 			# 收集元素
 			level_system.collect_tiles(tile_type, positions.size())
@@ -310,6 +358,27 @@ func _process_matches(turn_result: Dictionary) -> void:
 			if combo_count > 1:
 				score = int(score * pow(Constants.COMBO_MULTIPLIER, combo_count - 1))
 			level_system.add_score(score)
+
+		var specials_triggered: Array = chain_data.get("specials_triggered", [])
+		for triggered in specials_triggered:
+			board_visual.show_special_blast(triggered.get("position", Vector2i(-1, -1)), str(triggered.get("direction", "")))
+		var specials_created: Array = chain_data.get("specials_created", [])
+		if not specials_created.is_empty() and status_label:
+			status_label.text = "清风块留在盘面了：点它一下，就能吹过整行或整列。"
+		var special_cleared: Array = chain_data.get("special_cleared", [])
+		if not special_cleared.is_empty():
+			await board_visual.show_match_animation(special_cleared)
+		var blockers_broken: Array = chain_data.get("blockers_broken", [])
+		if not blockers_broken.is_empty():
+			level_system.clear_blockers(blockers_broken.size())
+			await board_visual.show_match_animation(blockers_broken)
+			if status_label:
+				status_label.text = "石块碎了！"
+		var blockers_damaged: Array = chain_data.get("blockers_damaged", [])
+		if not blockers_damaged.is_empty():
+			if status_label:
+				status_label.text = "石块裂开了，再敲一次就碎。"
+			AudioManager.play_combo(3)
 
 		var cleared_layers: Array = chain_data.get("garden_cleared", [])
 		var dew_bursts: Array = chain_data.get("dew_bursts", [])
@@ -378,6 +447,11 @@ func _process_matches(turn_result: Dictionary) -> void:
 		
 		# 更新UI
 		_update_hud()
+		# 每次有效消除都把因果落到花园角落（迭代 M / M2）
+		_advance_garden_corner(cleared_layers.size())
+		# 迭代 P：局内不再喂食照料对象，单一目标
+		# 接近目标或步数偏低时分级升温（迭代 M / M3）
+		_advance_rhythm()
 	
 	combo_count = 0
 	if turn_result.get("chain_capped", false):
@@ -386,6 +460,7 @@ func _process_matches(turn_result: Dictionary) -> void:
 			status_label.text = "连锁太旺，花园已经轻轻整理好棋盘。"
 	else:
 		board_visual.sync_with_grid(board.grid)
+	board_visual.set_specials(board.get_special_grid())
 
 # ==================== UI更新 ====================
 func _update_hud() -> void:
@@ -397,7 +472,199 @@ func _update_hud() -> void:
 		target_label.text = level_system.get_target_progress_text()
 	if status_label and status_label.text.is_empty():
 		status_label.text = level_system.get_target_intro_text()
+	_refresh_board_overlays()
 	_update_breeze_button()
+
+
+func _create_companion_panel() -> void:
+	companion_panel = PanelContainer.new()
+	companion_panel.position = Vector2(25, 1036)
+	companion_panel.custom_minimum_size = Vector2(700, 176)
+	companion_panel.size = Vector2(700, 176)
+	companion_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	companion_panel.add_theme_stylebox_override("panel", _companion_panel_style())
+	add_child(companion_panel)
+
+	var corner_box = VBoxContainer.new()
+	corner_box.add_theme_constant_override("separation", 8)
+	companion_panel.add_child(corner_box)
+
+	companion_title = Label.new()
+	companion_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	companion_title.add_theme_font_size_override("font_size", 22)
+	companion_title.add_theme_color_override("font_color", Color(0.16, 0.36, 0.28))
+	corner_box.add_child(companion_title)
+
+	var visual_row = HBoxContainer.new()
+	visual_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	visual_row.add_theme_constant_override("separation", 14)
+	corner_box.add_child(visual_row)
+
+	companion_visual = Label.new()
+	companion_visual.text = CompanionService.get_stage_symbol()
+	companion_visual.add_theme_font_size_override("font_size", 52)
+	companion_visual.pivot_offset = Vector2(40, 34)
+	companion_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	visual_row.add_child(companion_visual)
+	companion_markers = [companion_visual]
+
+	companion_request = Label.new()
+	companion_request.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	companion_request.add_theme_font_size_override("font_size", 19)
+	companion_request.add_theme_color_override("font_color", Color(0.2, 0.4, 0.32))
+	companion_request.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	companion_request.custom_minimum_size = Vector2(520, 0)
+	visual_row.add_child(companion_request)
+
+	companion_hint = Label.new()
+	companion_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	companion_hint.add_theme_font_size_override("font_size", 17)
+	companion_hint.add_theme_color_override("font_color", Color(0.32, 0.44, 0.38))
+	corner_box.add_child(companion_hint)
+
+
+func _companion_panel_style() -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(1, 1, 1, 0.62)
+	style.set_corner_radius_all(24)
+	style.set_content_margin_all(14)
+	return style
+
+
+func _companion_marker_style(lit: bool) -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color("#8FD694") if lit else Color(1, 1, 1, 0.45)
+	style.border_color = Color("#4E9E63") if lit else Color(0.72, 0.78, 0.74, 0.75)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(999)
+	return style
+
+
+func _refresh_companion() -> void:
+	if not companion_panel:
+		return
+	if companion_title:
+		companion_title.text = "%s · %s" % [CompanionService.get_companion_name(), CompanionService.get_stage_name()]
+	if companion_visual:
+		companion_visual.text = CompanionService.get_stage_symbol()
+	if companion_request:
+		companion_request.text = str(CompanionService.get_current_request().get("text", ""))
+	if companion_hint:
+		companion_hint.text = "%s · %s" % [CompanionService.get_needs_text(), companion_last_reaction]
+
+
+func _pulse_companion() -> void:
+	if not companion_panel:
+		return
+	if companion_tween and companion_tween.is_valid():
+		companion_tween.kill()
+	companion_panel.modulate = Color(1, 1, 1, 1)
+	companion_tween = create_tween()
+	companion_tween.tween_property(companion_panel, "modulate", Color(1.0, 1.05, 1.0, 1.0), 0.1)
+	companion_tween.tween_property(companion_panel, "modulate", Color(1, 1, 1, 1), 0.25)
+
+
+func _animate_companion_growth(payload: Dictionary) -> void:
+	_refresh_companion()
+	if companion_hint:
+		companion_hint.text = "%s · %s" % [CompanionService.get_needs_text(), str(payload.get("reaction", companion_last_reaction))]
+	if companion_markers.is_empty():
+		return
+	var visual = companion_markers[0]
+	if companion_tween and companion_tween.is_valid():
+		companion_tween.kill()
+	visual.scale = Vector2.ONE
+	companion_tween = create_tween()
+	companion_tween.tween_property(visual, "scale", Vector2(1.4, 1.4), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	companion_tween.tween_property(visual, "scale", Vector2.ONE, 0.26)
+
+
+func _advance_garden_corner(cleared_count: int) -> void:
+	if not level_system or not level_system.is_level_active:
+		return
+	var growth = level_system.refresh_garden_corner()
+	garden_corner_changed.emit({
+		"stage": level_system.garden_corner_stage,
+		"max_stage": LevelSystem.GARDEN_CORNER_STAGES,
+		"stage_changed": not growth.is_empty(),
+		"focus_name": str(level_system.get_theme_target_data().get("focus_name", "花园角落")),
+		"cleared_count": cleared_count,
+		"level_id": level_system.current_level_id
+	})
+
+
+# 迭代 O：按颜色喂食，命中它当前的请求时给更强回应。
+func _advance_companion(type_counts: Dictionary) -> void:
+	if not level_system or not level_system.is_level_active:
+		return
+	var result = CompanionService.feed_matches(type_counts)
+	if result.is_empty():
+		return
+	companion_last_reaction = str(result.get("reaction", companion_last_reaction))
+	_refresh_companion()
+	var satisfied = bool(result.get("satisfied_request", false))
+	var stage_changed = bool(result.get("stage_changed", false))
+	if satisfied or stage_changed:
+		_animate_companion_growth(result)
+		if satisfied and status_label:
+			status_label.text = companion_last_reaction
+		if stage_changed:
+			AudioManager.play_combo(4)
+	else:
+		_pulse_companion()
+	companion_fed.emit(result)
+
+
+func _advance_rhythm() -> void:
+	if not level_system or not level_system.is_level_active:
+		return
+	var payload = level_system.refresh_rhythm()
+	if payload.is_empty():
+		return
+	var tier = int(payload.get("tier", 0))
+	if status_label:
+		status_label.text = "风渐渐起来了，这里就差一点。" if tier == 1 else "只剩最后一口气，让清风一次吹亮它。"
+	if background_tint:
+		background_tint.color = Color(1.0, 0.97, 0.9, 0.32) if tier == 1 else Color(1.0, 0.94, 0.82, 0.4)
+	_pulse_companion()
+	if tier >= 2:
+		AudioManager.play_combo(6)
+	rhythm_changed.emit(payload)
+
+
+func _reset_level_rhythm() -> void:
+	if background_tint:
+		background_tint.color = Color(0.96, 0.95, 1.0, 0.24)
+
+
+func _play_level_climax(outcome: String) -> void:
+	_refresh_companion()
+	if status_label:
+		status_label.text = "这一阵清风，把这里整个吹亮了。"
+	if background_tint:
+		background_tint.color = Color(1.0, 0.95, 0.84, 0.42)
+	if companion_panel:
+		if companion_tween and companion_tween.is_valid():
+			companion_tween.kill()
+		companion_panel.pivot_offset = companion_panel.size / 2.0
+		companion_tween = create_tween()
+		companion_tween.tween_property(companion_panel, "scale", Vector2(1.04, 1.04), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		companion_tween.tween_property(companion_panel, "scale", Vector2.ONE, 0.3)
+	AudioManager.play_victory()
+	level_climax.emit({
+		"outcome": outcome,
+		"level_id": level_system.current_level_id,
+		"garden_corner_stage": level_system.garden_corner_stage,
+		"moves_left": level_system.moves_left,
+		"is_daily_challenge": not active_daily_challenge.is_empty()
+	})
+
+
+func _refresh_board_overlays() -> void:
+	if not board_visual or not board:
+		return
+	board_visual.set_specials(board.get_special_grid())
+	board_visual.set_blockers(board.get_blocker_positions(), board.get_blocker_hp_map())
 
 
 func _update_breeze_button() -> void:
@@ -495,8 +762,7 @@ func _on_level_won(stars: int, score: int) -> void:
 
 	if target_label:
 		target_label.text = "🎉 恭喜过关！"
-	if status_label:
-		status_label.text = "这阵清风让花园更亮了一点。"
+	_play_level_climax("victory")
 
 	PopupManager.show_victory(
 		settlement,
@@ -536,10 +802,15 @@ func _on_level_failed() -> void:
 		PopupManager.close_popup("failure")
 		GameManager.open_garden(settlement)
 
+	var retry_action = func() -> void:
+		PopupManager.close_popup("failure")
+		_start_level(level_system.current_level_id)
+
 	PopupManager.show_failure(
 		settlement,
 		continue_action,
-		rest_action
+		rest_action,
+		retry_action
 	)
 
 
@@ -585,6 +856,7 @@ func _settle_daily_challenge(won: bool, score: int) -> void:
 	}
 	level_settled.emit(payload)
 	if won:
+		_play_level_climax("victory")
 		PopupManager.show_confirm(
 			"今日风庭完成",
 			"晨露最大连锁 x%d，剩余 %d 步。今日可随时再试，挑战更高连锁。" % [int(theme_progress.get("max_dew_chain", 0)), level_system.moves_left],

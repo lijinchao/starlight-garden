@@ -81,6 +81,74 @@ func test_navigation_and_guidance() -> void:
 	SaveManager.reset_save()
 
 
+func test_home_return_paths() -> void:
+	# 局内主页按钮必须可点：HUD 容器与标签不能拦截点击
+	var controller = SimpleGameController.new()
+	add_child(controller)
+	controller._start_level(1)
+	assert_equal(controller.hud_container.mouse_filter, Control.MOUSE_FILTER_IGNORE, "HUD 容器不拦截局内主页按钮")
+	for hud_label in [controller.moves_label, controller.score_label, controller.target_label, controller.status_label]:
+		assert_equal(hud_label.mouse_filter, Control.MOUSE_FILTER_IGNORE, "HUD 标签不拦截局内主页按钮")
+	var home_signals: Array = []
+	controller.home_requested.connect(func() -> void: home_signals.append(true))
+	controller._on_home_pressed()
+	assert_equal(home_signals.size(), 1, "局内主页按钮触发返回主页")
+	controller.free()
+
+	# 胜利弹窗必须提供回主页入口，不能只强迫继续过关
+	var victory = {
+		"outcome": "victory",
+		"level_id": 1,
+		"score": 100,
+		"stars_earned": 3,
+		"player_total_runs_after": 9,
+		"rewards": {"seed_count": 1, "seed_type": Constants.TileType.RED_ROSE, "stars": 20},
+		"restoration_progress": {"changed": true, "name": "发芽角", "focus_title": "第一簇新芽"}
+	}
+	var victory_popup = PopupManager._create_victory_popup(victory)
+	assert_true(_find_button_texts(victory_popup).has("回主页"), "胜利弹窗提供回主页入口，不强迫继续过关")
+	victory_popup.free()
+
+	# 迭代 P / B-2：失败后必须能免费立刻重试
+	var failure_popup = PopupManager._create_failure_popup({
+		"outcome": "failure",
+		"level_id": 6,
+		"moves_used": 13,
+		"continue_cost": 10,
+		"player_total_runs_after": 9,
+		"progress_ratio": 0.5,
+		"rest_rewards": {"stars": 6, "seed_count": 0, "seed_type": Constants.TileType.RED_ROSE}
+	}, true)
+	assert_true(_find_button_texts(failure_popup).has("重试本关"), "失败弹窗提供免费重试入口")
+	failure_popup.free()
+
+
+func test_level_select_replay() -> void:
+	SaveManager.reset_save()
+	var player = SaveManager.get_player_data()
+	player["level"] = 6
+	player["cleared_levels"] = [1, 2, 3, 4, 5]
+	SaveManager.update_player_data(player)
+
+	var menu = MainMenu.new()
+	add_child(menu)
+	menu.show_menu()
+	assert_true(menu.level_select_btn.visible, "有进度后主菜单出现选关入口")
+
+	menu._open_level_select()
+	var level_buttons = menu.get_level_select_buttons()
+	assert_true(level_buttons.size() >= 6, "选关面板列出已到达的关卡")
+
+	var captured: Array = []
+	menu.start_specific_level.connect(func(level_id: int) -> void: captured.append(level_id))
+	(level_buttons[5] as Button).pressed.emit()
+	assert_equal(captured.size(), 1, "点击关卡按钮会请求开始该关")
+	assert_equal(int(captured[0]), 6, "请求的是被点击的关卡")
+
+	menu.free()
+	SaveManager.reset_save()
+
+
 func test_restoration_feedback() -> void:
 	SaveManager.reset_save()
 

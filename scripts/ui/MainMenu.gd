@@ -6,6 +6,7 @@ const VisualAssetCatalogScript = preload("res://scripts/utils/VisualAssetCatalog
 
 # ==================== 信号 ====================
 signal start_game()
+signal start_specific_level(level_id: int)
 signal open_settings()
 signal open_garden()
 signal open_flower_journal()
@@ -19,6 +20,9 @@ var garden_btn: Button
 var flower_journal_btn: Button
 var daily_gift_btn: Button
 var settings_btn: Button
+var level_select_btn: Button
+var level_select_panel: PanelContainer
+var level_select_grid: GridContainer
 var main_container: VBoxContainer
 var recommendation_label: Label
 var level_label: Label
@@ -142,6 +146,43 @@ func _create_ui() -> void:
 	daily_gift_btn.custom_minimum_size = Vector2(300, 60)
 	daily_gift_btn.add_theme_font_size_override("font_size", 24)
 	main_container.add_child(daily_gift_btn)
+
+	# 选择关卡（重玩已通关关卡）
+	level_select_btn = Button.new()
+	level_select_btn.text = "🗺 选择关卡"
+	level_select_btn.custom_minimum_size = Vector2(300, 56)
+	level_select_btn.add_theme_font_size_override("font_size", 22)
+	main_container.add_child(level_select_btn)
+
+	level_select_panel = PanelContainer.new()
+	level_select_panel.set_anchors_preset(Control.PRESET_CENTER)
+	level_select_panel.custom_minimum_size = Vector2(560, 640)
+	level_select_panel.position = Vector2(-280, -320)
+	level_select_panel.visible = false
+	level_select_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	level_select_panel.add_theme_stylebox_override("panel", UITheme.create_panel_style(Color(1, 1, 1), 0.96))
+	add_child(level_select_panel)
+	var level_box = VBoxContainer.new()
+	level_box.add_theme_constant_override("separation", 14)
+	level_select_panel.add_child(level_box)
+	var level_title = Label.new()
+	level_title.text = "选择关卡"
+	level_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	level_title.add_theme_font_size_override("font_size", 26)
+	level_box.add_child(level_title)
+	var level_scroll = ScrollContainer.new()
+	level_scroll.custom_minimum_size = Vector2(520, 500)
+	level_box.add_child(level_scroll)
+	level_select_grid = GridContainer.new()
+	level_select_grid.columns = 5
+	level_select_grid.add_theme_constant_override("h_separation", 12)
+	level_select_grid.add_theme_constant_override("v_separation", 12)
+	level_scroll.add_child(level_select_grid)
+	var level_close_btn = Button.new()
+	level_close_btn.text = "返回"
+	level_close_btn.custom_minimum_size = Vector2(160, 48)
+	level_close_btn.pressed.connect(_close_level_select)
+	level_box.add_child(level_close_btn)
 	
 	# 当前关卡显示
 	level_label = Label.new()
@@ -229,6 +270,7 @@ func _connect_signals() -> void:
 	flower_journal_btn.pressed.connect(_on_flower_journal_pressed)
 	daily_gift_btn.pressed.connect(_on_daily_gift_pressed)
 	settings_btn.pressed.connect(_on_settings_pressed)
+	level_select_btn.pressed.connect(_open_level_select)
 
 # ==================== 数据更新 ====================
 func _update_display() -> void:
@@ -236,6 +278,7 @@ func _update_display() -> void:
 	level_label.text = "当前关卡: %d" % player_data.get("level", 1)
 	flower_journal_btn.visible = is_flower_journal_unlocked()
 	daily_gift_btn.visible = is_daily_gift_unlocked()
+	level_select_btn.visible = _get_max_playable_level() > 1
 	_update_restoration_display()
 	_update_home_recommendation(player_data)
 
@@ -469,6 +512,38 @@ func _on_daily_gift_pressed() -> void:
 func _on_settings_pressed() -> void:
 	AudioManager.play_ui_click()
 	open_settings.emit()
+
+
+func _get_max_playable_level() -> int:
+	return clampi(int(SaveManager.get_player_data().get("level", 1)), 1, 20)
+
+
+func _open_level_select() -> void:
+	AudioManager.play_ui_click()
+	for child in level_select_grid.get_children():
+		child.queue_free()
+	for level_id in range(1, _get_max_playable_level() + 1):
+		var level_btn = Button.new()
+		level_btn.text = str(level_id)
+		level_btn.custom_minimum_size = Vector2(88, 72)
+		level_btn.add_theme_font_size_override("font_size", 24)
+		level_btn.pressed.connect(_on_level_button_pressed.bind(level_id))
+		level_select_grid.add_child(level_btn)
+	level_select_panel.visible = true
+
+
+func _close_level_select() -> void:
+	level_select_panel.visible = false
+
+
+func get_level_select_buttons() -> Array:
+	return level_select_grid.get_children()
+
+
+func _on_level_button_pressed(level_id: int) -> void:
+	AudioManager.play_ui_click()
+	_close_level_select()
+	start_specific_level.emit(level_id)
 
 # ==================== 公开方法 ====================
 func show_menu() -> void:

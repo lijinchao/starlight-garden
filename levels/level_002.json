@@ -12,6 +12,7 @@
     "garden_layer": {
       "type": "fallen_leaves",
       "required": 3,
+      "required_for_clear": false,
       "cells": [[2, 1], [2, 3], [2, 5]]
     },
     "theme": {
